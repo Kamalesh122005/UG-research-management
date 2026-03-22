@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build files
+frontend/dist/
+frontend/build/
+
+# Environment Variables
+.env
+backend/.env
+frontend/.env
+.DS_Store
+
+# Local Database & Uploads
+backend/uploads/
+backend/*.sqlite
+backend/*.db
