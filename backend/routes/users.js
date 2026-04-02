@@ -50,6 +50,26 @@ router.get(
 
 
 // ======================================================
+// GET /api/users/staff — All staff users (for mentor dropdown)
+// ======================================================
+router.get(
+    '/staff',
+    isAuthenticated,
+    async (req, res) => {
+        try {
+            const [results] = await db.promise().query(
+                `SELECT id, name, email, department FROM users WHERE role = 'staff' ORDER BY name ASC`
+            );
+            res.json(results);
+        } catch (err) {
+            console.error(err);
+            res.status(500).json({ error: 'Server error fetching staff' });
+        }
+    }
+);
+
+
+// ======================================================
 // GET /api/users/students — All students (staff/admin)
 // ======================================================
 router.get(

@@ -5,8 +5,10 @@ import {
 } from '@mui/material';
 import {
     Menu as MenuIcon, Dashboard, Assignment, PlaylistAddCheck,
-    Group, Person, Logout, PostAdd, FolderCopy
+    Group, Person, Logout, PostAdd, FolderCopy, Notifications
 } from '@mui/icons-material';
+import { Badge, Popover } from '@mui/material';
+import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -21,6 +23,23 @@ const Layout = ({ children }) => {
 
     const [mobileOpen, setMobileOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
+    const [notifAnchor, setNotifAnchor] = useState(null);
+    const [notifications, setNotifications] = useState([]);
+
+    const fetchNotifications = async () => {
+        try {
+            const res = await axios.get('/api/notifications');
+            setNotifications(res.data);
+        } catch (err) {
+            console.error("Notif fetch error:", err);
+        }
+    };
+
+    useState(() => {
+        if (user) fetchNotifications();
+    }, [user]);
+
+    const unreadCount = notifications.filter(n => !n.is_read).length;
 
     const handleDrawerToggle = () => {
         setMobileOpen(!mobileOpen);
@@ -38,18 +57,22 @@ const Layout = ({ children }) => {
         const items = [{ text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' }];
 
         if (user?.role === 'student') {
-            items.push({ text: 'My Activities', icon: <FolderCopy />, path: '/my-activities' });
-            items.push({ text: 'Add Activity', icon: <PostAdd />, path: '/add-activity' });
-            items.push({ text: 'View All Projects', icon: <PlaylistAddCheck />, path: '/all-activities' });
+            items.push({ text: 'My Research Activities', icon: <FolderCopy />, path: '/my-activities' });
+            items.push({ text: 'Submit Activity', icon: <PostAdd />, path: '/submit' });
+            items.push({ text: 'All Activities', icon: <PlaylistAddCheck />, path: '/all' });
         }
 
-        if (user?.role === 'staff' || user?.role === 'admin') {
-            items.push({ text: 'All Activities', icon: <FolderCopy />, path: '/all-activities' });
-            items.push({ text: 'Students', icon: <Group />, path: '/students' });
+        if (user?.role === 'staff') {
+            items.push({ text: 'Workflow Management', icon: <Assignment />, path: '/mentor-dashboard' });
+            items.push({ text: 'All Research', icon: <PlaylistAddCheck />, path: '/all' });
+            items.push({ divider: true });
+            items.push({ text: 'Student Directory', icon: <Group />, path: '/students' });
         }
 
         if (user?.role === 'admin') {
-            items.push({ text: 'Manage Users', icon: <Person />, path: '/manage-users' });
+            items.push({ text: 'All Research', icon: <PlaylistAddCheck />, path: '/all' });
+            items.push({ text: 'User Management', icon: <Person />, path: '/manage-users' });
+            items.push({ text: 'Student Directory', icon: <Group />, path: '/students' });
         }
 
         return items;
@@ -65,7 +88,8 @@ const Layout = ({ children }) => {
             </Toolbar>
             <Divider sx={{ mb: 2 }} />
             <List sx={{ px: 2, flex: 1 }}>
-                {getNavItems().map((item) => {
+                {getNavItems().map((item, idx) => {
+                    if (item.divider) return <Divider key={`div-${idx}`} sx={{ my: 1.5 }} />;
                     const active = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
                     return (
                         <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
@@ -124,6 +148,71 @@ const Layout = ({ children }) => {
                     </IconButton>
 
                     <Box sx={{ flexGrow: 1 }} />
+
+                    <IconButton
+                        color="inherit"
+                        onClick={(e) => setNotifAnchor(e.currentTarget)}
+                        sx={{ mr: 2, color: 'text.secondary' }}
+                    >
+                        <Badge badgeContent={unreadCount} color="error">
+                            <Notifications />
+                        </Badge>
+                    </IconButton>
+
+                    <Popover
+                        open={Boolean(notifAnchor)}
+                        anchorEl={notifAnchor}
+                        onClose={() => setNotifAnchor(null)}
+                        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                        PaperProps={{ sx: { width: 320, maxHeight: 400, mt: 1.5, borderRadius: 3, boxShadow: '0 8px 32px rgba(0,0,0,0.1)' } }}
+                    >
+                        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid', borderColor: 'grey.100' }}>
+                            <Typography variant="subtitle1" fontWeight="bold">Notifications</Typography>
+                            {unreadCount > 0 && (
+                                <Typography
+                                    variant="caption" color="primary" sx={{ cursor: 'pointer', fontWeight: 600 }}
+                                    onClick={async () => {
+                                        await axios.post('/api/notifications/read-all');
+                                        fetchNotifications();
+                                    }}
+                                >
+                                    Mark all as read
+                                </Typography>
+                            )}
+                        </Box>
+                        <List sx={{ p: 0 }}>
+                            {notifications.length === 0 ? (
+                                <Box sx={{ py: 4, textAlign: 'center' }}>
+                                    <Notifications sx={{ color: 'grey.300', fontSize: 40, mb: 1 }} />
+                                    <Typography variant="body2" color="text.secondary">No new notifications</Typography>
+                                </Box>
+                            ) : (
+                                notifications.map((n) => (
+                                    <ListItem
+                                        key={n.id}
+                                        sx={{
+                                            borderBottom: '1px solid', borderColor: 'grey.50',
+                                            bgcolor: n.is_read ? 'transparent' : 'rgba(25, 118, 210, 0.04)'
+                                        }}
+                                        onClick={async () => {
+                                            if (!n.is_read) {
+                                                await axios.put(`/api/notifications/${n.id}/read`);
+                                                fetchNotifications();
+                                            }
+                                        }}
+                                    >
+                                        <ListItemText
+                                            primary={n.message}
+                                            secondary={new Date(n.created_at).toLocaleString()}
+                                            primaryTypographyProps={{ variant: 'body2', fontWeight: n.is_read ? 400 : 600 }}
+                                            secondaryTypographyProps={{ variant: 'caption' }}
+                                        />
+                                    </ListItem>
+                                ))
+                            )}
+                        </List>
+                    </Popover>
 
                     <Tooltip title="Profile Settings">
                         <IconButton onClick={handleMenuOpen} sx={{ p: 0 }}>

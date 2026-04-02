@@ -5,7 +5,7 @@ A full-stack web application designed for academic departments to manage student
 ## 🛠️ Tech Stack
 - **Frontend**: React.js (Vite), Material UI (MUI), React Router
 - **Backend**: Node.js, Express.js
-- **Database**: PostgreSQL
+- **Database**: MySQL (using `mysql2`)
 - **Auth**: Session-based auth with `express-session` & `bcrypt`
 
 ## 📁 Folder Structure
@@ -14,8 +14,8 @@ academic-portal/
 ├── backend/            # Express.js Server
 │   ├── middleware/     # Auth and role middlewares
 │   ├── routes/         # API routes (auth, users, activities)
-│   ├── db.js           # PostgreSQL connection pool
-│   ├── init-db.js      # Automatic schema initializion script
+│   ├── db.js           # MySQL connection pool
+│   ├── init-db.js      # Automatic schema initialization script
 │   ├── schema.sql      # Database schema
 │   ├── server.js       # Express entrypoint
 │   └── .env            # Environment Variables
@@ -30,19 +30,19 @@ academic-portal/
 
 ## ⚙️ Environment Configuration
 
-First, ensure you have **PostgreSQL** installed and running on your system.
+First, ensure you have **MySQL** installed and running on your system.
 
-Navigate to the `backend` folder and check the `.env` file:
+Navigate to the `backend` folder and create/update the `.env` file:
 ```env
 PORT=5000
-DB_USER=kamalesh
-DB_PASSWORD=
+DB_USER=root
+DB_PASSWORD=your_password_here
 DB_HOST=localhost
-DB_PORT=5432
+DB_PORT=3306
 DB_NAME=academic_portal
 SESSION_SECRET=super_secret_academic_session_key
 ```
-Update `DB_USER` and `DB_PASSWORD` to match your local PostgreSQL credentials if needed.
+Update `DB_USER` and `DB_PASSWORD` to match your local MySQL credentials.
 
 ## 🚀 Steps to Install Dependencies
 
@@ -66,14 +66,14 @@ Instead of manually running SQL queries, you can run the built-in initialization
 ```bash
 node init-db.js
 ```
-*This will automatically connect to your PostgreSQL instance, create the `academic_portal` database, and execute `schema.sql`.*
+*This will automatically connect to your MySQL instance, create the `academic_portal` database, and execute `schema.sql` to set up tables and demo data.*
 
 ## ▶️ Running the Project Locally
 
 **Start the Backend Server:**
 ```bash
 cd backend
-npm start       # or 'node server.js'
+npm run dev      # if nodemon is available, or 'node server.js'
 ```
 *The server will run on http://localhost:5000*
 
@@ -85,5 +85,9 @@ npm run dev
 *The React app will usually run on http://localhost:5173. Open this in your browser.*
 
 ### 🔑 Demo Login Instructions
-Because this is a fresh setup, you'll need to use the register endpoint (e.g. via Postman) or directly insert a user into your database to log in. 
-*(For demo purposes, a user route `POST /api/auth/register` is available in `routes/auth.js` that you can call to create the first Student/Admin).*
+The initialization script seeds the following demo accounts:
+- **Admin**: `admin@test.com` / `admin123`
+- **Staff**: `staff@test.com` / `staff123`
+- **Student**: `student@test.com` / `student123`
+
+You can also use the registration feature in the UI to create new accounts.

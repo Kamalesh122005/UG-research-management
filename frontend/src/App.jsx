@@ -15,6 +15,10 @@ import ViewAllActivities from './pages/ViewAllActivities';
 import StudentList from './pages/StudentList';
 import StudentProfile from './pages/StudentProfile';
 import ManageUsers from './pages/ManageUsers';
+import MyProjects from './pages/MyProjects';
+import MentorDashboard from './pages/MentorDashboard';
+import AllProjects from './pages/AllProjects';
+import ProjectDetail from './pages/ProjectDetail';
 import Layout from './components/Layout';
 
 // Global Enterprise Theme
@@ -81,16 +85,26 @@ function App() {
             <Route path="/dashboard" element={<ProtectedRoute><DashboardRouter /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
 
-            <Route path="/add-activity" element={<ProtectedRoute roles={['student']}><AddActivity /></ProtectedRoute>} />
+            <Route path="/submit" element={<ProtectedRoute roles={['student']}><AddActivity /></ProtectedRoute>} />
             <Route path="/edit-activity/:id" element={<ProtectedRoute roles={['student', 'admin']}><EditActivity /></ProtectedRoute>} />
             <Route path="/my-activities" element={<ProtectedRoute roles={['student']}><MyActivities /></ProtectedRoute>} />
 
-            <Route path="/all-activities" element={<ProtectedRoute><ViewAllActivities /></ProtectedRoute>} />
+            <Route path="/all" element={<ProtectedRoute><ViewAllActivities /></ProtectedRoute>} />
 
             <Route path="/students" element={<ProtectedRoute roles={['staff', 'admin']}><StudentList /></ProtectedRoute>} />
             <Route path="/student/:id" element={<ProtectedRoute roles={['staff', 'admin']}><StudentProfile /></ProtectedRoute>} />
 
             <Route path="/manage-users" element={<ProtectedRoute roles={['admin']}><ManageUsers /></ProtectedRoute>} />
+
+            {/* Backwards compatibility & Cleaned Up Routes */}
+            <Route path="/add-activity" element={<Navigate to="/submit" replace />} />
+            <Route path="/all-activities" element={<Navigate to="/all" replace />} />
+            <Route path="/submit-project" element={<Navigate to="/submit" replace />} />
+            <Route path="/my-projects" element={<Navigate to="/my-activities" replace />} />
+
+            <Route path="/mentor-dashboard" element={<ProtectedRoute roles={['staff', 'admin']}><MentorDashboard /></ProtectedRoute>} />
+            <Route path="/all-projects" element={<Navigate to="/all" replace />} />
+            <Route path="/projects/:id" element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

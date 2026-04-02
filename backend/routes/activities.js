@@ -6,6 +6,23 @@ const multer = require("multer");
 const path = require("path");
 
 // ===================================================
+// Allowed domain values (single source of truth)
+// ===================================================
+const VALID_DOMAINS = ["Education", "Manufacturing", "Technology", "Medical", "Agriculture"];
+
+// Helper for notifications
+const createNotification = async (userId, message) => {
+  try {
+    await db.promise().query(
+      "INSERT INTO notifications (user_id, message) VALUES (?, ?)",
+      [userId, message]
+    );
+  } catch (err) {
+    console.error("Failed to create notification:", err);
+  }
+};
+
+// ===================================================
 // File Upload setup (Multer)
 // ===================================================
 const storage = multer.diskStorage({
@@ -54,14 +71,17 @@ router.get("/stats", isAuthenticated, async (req, res) => {
 router.get("/my", isAuthenticated, async (req, res) => {
   try {
     const [rows] = await db.promise().query(
-      `SELECT a.*, u.name AS student_name
+      `SELECT a.*, u.name AS student_name,
+              COALESCE(m.name, a.mentor_name) AS mentor_display_name,
+              COALESCE(m.email, a.mentor_email) AS mentor_display_email
        FROM activities a
-       JOIN users u ON a.user_id = u.id
-       WHERE a.user_id = ?
+       JOIN users u ON a.created_by = u.id
+       LEFT JOIN users m ON a.mentor_id = m.id
+       WHERE a.created_by = ?
        ORDER BY a.created_at DESC`,
       [req.session.user.id]
     );
-    res.json(rows);
+    res.json(rows || []);
   } catch (err) {
     console.error("My activities error:", err);
     res.status(500).json({ error: "Failed to fetch activities" });
@@ -70,60 +90,63 @@ router.get("/my", isAuthenticated, async (req, res) => {
 
 
 // ===================================================
+// GET /api/activities/mentor — Projects supervised by mentor
+// ===================================================
+router.get("/mentor", isAuthenticated, hasRole(["staff", "admin"]), async (req, res) => {
+  try {
+    const [rows] = await db.promise().query(
+      `SELECT a.*, u.name AS student_name, u.department, u.register_number, u.year AS user_year
+       FROM activities a
+       JOIN users u ON a.user_id = u.id
+       WHERE a.mentor_id = ?
+       ORDER BY a.created_at DESC`,
+      [req.session.user.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("Mentor activities error:", err);
+    res.status(500).json({ error: "Failed to fetch mentee activities" });
+  }
+});
+
+
+// ===================================================
 // GET /api/activities/all  — All activities w/ Filters
 // ===================================================
 router.get("/all", isAuthenticated, async (req, res) => {
-  const { type, year, department, domain, name, register_number, date_from, date_to } = req.query;
+  const { type, year, department, domain, name, register_number, date_from, date_to, keyword, mentor_id } = req.query;
 
   let query = `
-    SELECT a.*, u.name AS student_name, u.department, u.register_number, u.year AS user_year
+    SELECT a.*, u.name AS student_name, u.department, u.register_number, u.year AS user_year,
+           COALESCE(m.name, a.mentor_name) AS mentor_display_name,
+           COALESCE(m.email, a.mentor_email) AS mentor_display_email
     FROM activities a
-    JOIN users u ON a.user_id = u.id
-    WHERE 1=1
+    JOIN users u ON a.created_by = u.id
+    LEFT JOIN users m ON a.mentor_id = m.id
+    WHERE a.status = 'Approved'
   `;
   const params = [];
 
-  if (type && type !== "All") {
-    query += ` AND a.activity_type = ?`;
-    params.push(type);
+  if (type && type !== "All") { query += ` AND a.activity_type = ?`; params.push(type); }
+  if (year && year !== "All") { query += ` AND a.student_level = ?`; params.push(year); }
+  if (department && department !== "All") { query += ` AND u.department = ?`; params.push(department); }
+  if (domain && domain !== "All") { query += ` AND a.domain = ?`; params.push(domain); }
+  if (name && name.trim()) { query += ` AND u.name LIKE ?`; params.push(`%${name.trim()}%`); }
+  if (register_number && register_number.trim()) { query += ` AND u.register_number LIKE ?`; params.push(`%${register_number.trim()}%`); }
+  if (date_from) { query += ` AND a.date >= ?`; params.push(date_from); }
+  if (date_to) { query += ` AND a.date <= ?`; params.push(date_to); }
+  if (keyword && keyword.trim()) {
+    const k = `%${keyword.trim()}%`;
+    query += ` AND (a.title LIKE ? OR a.keywords LIKE ? OR a.description LIKE ?)`;
+    params.push(k, k, k);
   }
-  if (year && year !== "All") {
-    // Note: The prompt asks for student_level dropdown in filter, but user role has 'year'. 
-    // We should filter against either the embedded student_level or the user's year. 
-    // Let's filter against a.student_level if provided.
-    query += ` AND a.student_level = ?`;
-    params.push(year);
-  }
-  if (department && department !== "All") {
-    query += ` AND u.department = ?`;
-    params.push(department);
-  }
-  if (domain && domain.trim() !== "") {
-    query += ` AND a.domain LIKE ?`;
-    params.push(`%${domain}%`);
-  }
-  if (name && name.trim() !== "") {
-    query += ` AND u.name LIKE ?`;
-    params.push(`%${name}%`);
-  }
-  if (register_number && register_number.trim() !== "") {
-    query += ` AND u.register_number LIKE ?`;
-    params.push(`%${register_number}%`);
-  }
-  if (date_from) {
-    query += ` AND a.date >= ?`;
-    params.push(date_from);
-  }
-  if (date_to) {
-    query += ` AND a.date <= ?`;
-    params.push(date_to);
-  }
+  if (mentor_id && mentor_id !== "All") { query += ` AND a.mentor_id = ?`; params.push(mentor_id); }
 
   query += ` ORDER BY a.created_at DESC`;
 
   try {
     const [rows] = await db.promise().query(query, params);
-    res.json(rows);
+    res.json(rows || []);
   } catch (err) {
     console.error("All activities error:", err);
     res.status(500).json({ error: "Failed to fetch activities" });
@@ -163,7 +186,8 @@ router.get(
 router.post("/add", isAuthenticated, upload.single("file"), async (req, res) => {
   const {
     title, description, activity_type, status, date,
-    student_level, domain, problem_statement, abstract, team_members, mentor,
+    student_level, domain, problem_statement, abstract, team_members,
+    mentor_name, mentor_email, mentor_type, mentor_id, keywords,
     venue, budget, position, journal_name, publisher, doi, issued_by
   } = req.body;
 
@@ -171,12 +195,28 @@ router.post("/add", isAuthenticated, upload.single("file"), async (req, res) => 
     return res.status(400).json({ error: "Title and activity type are required" });
   }
 
-  const validTypes = [
-    "Internally Funded Projects", "Conferences", "Hackathons",
-    "Journal Publication", "Achievement"
-  ];
+  // Mentor enforcement: must have either internal (id) or external (name)
+  if (!mentor_id && !mentor_name) {
+    return res.status(400).json({ error: "Mentor assignment is required for all submissions." });
+  }
+
+  const validTypes = ["Internally Funded Project", "Conference", "Hackathon", "Publication", "Achievement"];
   if (!validTypes.includes(activity_type)) {
-    return res.status(400).json({ error: "Invalid activity type" });
+    return res.status(400).json({ error: "Invalid activity type: " + activity_type });
+  }
+
+  if (!domain || !VALID_DOMAINS.includes(domain)) {
+    return res.status(400).json({ error: "Invalid domain selected" });
+  }
+
+  const actStatus = status || 'Submitted';
+
+  // Validate mentor_id is a real staff user if provided
+  let resolvedMentorId = null;
+  if (mentor_id && mentor_id !== '' && mentor_id !== 'null') {
+    const [mentorRows] = await db.promise().query(`SELECT id FROM users WHERE id = ? AND role = 'staff'`, [mentor_id]);
+    if (mentorRows.length === 0) return res.status(400).json({ error: "Invalid mentor selected" });
+    resolvedMentorId = mentor_id;
   }
 
   const certificate_path = req.file ? `/uploads/${req.file.filename}` : null;
@@ -184,27 +224,34 @@ router.post("/add", isAuthenticated, upload.single("file"), async (req, res) => 
   try {
     const [result] = await db.promise().query(
       `INSERT INTO activities(
-    user_id, title, description, activity_type, status, date,
-    student_level, domain, problem_statement, abstract, team_members, mentor,
-    venue, budget, position, journal_name, publisher, doi, issued_by, certificate_path
-  ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    user_id, created_by, title, description, activity_type, status, date,
+    student_level, domain, problem_statement, abstract, team_members, mentor_name,
+    venue, budget, position, journal_name, publisher, doi, issued_by, certificate_path,
+    mentor_id, mentor_email, mentor_type, keywords
+  ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        req.session.user.id, title, description || null, activity_type, status || "ongoing", date || null,
-        student_level || null, domain || null, problem_statement || null, abstract || null,
-        team_members || null, mentor || null, venue || null, budget || null, position || null,
-        journal_name || null, publisher || null, doi || null, issued_by || null, certificate_path
+        req.session.user.id, req.session.user.id, title, description || null, activity_type, actStatus, date || null,
+        student_level || null, domain, problem_statement || null, abstract || null,
+        team_members || null, mentor_name || null, venue || null, budget || null, position || null,
+        journal_name || null, publisher || null, doi || null, issued_by || null, certificate_path,
+        resolvedMentorId, mentor_email || null, mentor_type || 'internal', keywords || null
       ]
     );
 
-    res.status(201).json({
-      message: "Activity added successfully",
-      activity_id: result.insertId,
-      certificate_path
-    });
+    // Trigger notification to mentor
+    if (resolvedMentorId) {
+      await createNotification(
+        resolvedMentorId,
+        `New project submitted under your mentorship: "${title}"`
+      );
+    }
+
+    res.status(201).json({ message: "Activity submitted successfully", status: actStatus, activity_id: result.insertId, certificate_path });
   } catch (err) {
     console.error("Add activity error:", err);
     res.status(500).json({ error: "Failed to add activity" });
   }
+
 });
 
 
@@ -214,7 +261,8 @@ router.post("/add", isAuthenticated, upload.single("file"), async (req, res) => 
 router.put("/:id", isAuthenticated, upload.single("file"), async (req, res) => {
   const {
     title, description, activity_type, status, date,
-    student_level, domain, problem_statement, abstract, team_members, mentor,
+    student_level, domain, problem_statement, abstract, team_members,
+    mentor_name, mentor_email, mentor_type, mentor_id, keywords,
     venue, budget, position, journal_name, publisher, doi, issued_by
   } = req.body;
   const activityId = req.params.id;
@@ -223,27 +271,56 @@ router.put("/:id", isAuthenticated, upload.single("file"), async (req, res) => {
 
   try {
     const [rows] = await db.promise().query("SELECT * FROM activities WHERE id = ?", [activityId]);
+    if (rows.length === 0) return res.status(404).json({ error: "Activity not found" });
+    if (userRole !== "admin" && rows[0].user_id !== userId) return res.status(403).json({ error: "You can only edit your own activities" });
 
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Activity not found" });
-    }
-    if (userRole !== "admin" && rows[0].user_id !== userId) {
-      return res.status(403).json({ error: "You can only edit your own activities" });
+    const validStatuses = ['Submitted', 'Approved', 'Rejected', 'In Progress', 'Completed'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({ error: "Invalid status value" });
     }
 
-    // Keep old file if no new file is uploaded
+    if (domain !== undefined && !VALID_DOMAINS.includes(domain)) {
+      return res.status(400).json({ error: "Invalid domain selected" });
+    }
+
+    const effectiveType = activity_type || rows[0].activity_type;
+    // Mentor enforcement
+    if (mentor_id === undefined && mentor_name === undefined) {
+      // If none provided, check if already exists
+      if (!rows[0].mentor_id && !rows[0].mentor_name) {
+        return res.status(400).json({ error: "Mentor is required." });
+      }
+    }
+
+    let resolvedMentorId = rows[0].mentor_id;
+    if (mentor_id !== undefined) {
+      if (!mentor_id || mentor_id === '') {
+        resolvedMentorId = null;
+      } else {
+        const [mRows] = await db.promise().query(`SELECT id FROM users WHERE id = ? AND role = 'staff'`, [mentor_id]);
+        if (mRows.length === 0) return res.status(400).json({ error: "Invalid mentor selected" });
+        resolvedMentorId = mentor_id;
+      }
+    }
+
+    // Locking for students: cannot modify certificate if status is 'Submitted'
+    if (userRole === 'student' && rows[0].status === 'Submitted' && req.file) {
+      return res.status(403).json({ error: "Documents cannot be modified after submission. Contact an administrator if changes are needed." });
+    }
+
     const certificate_path = req.file ? `/uploads/${req.file.filename}` : rows[0].certificate_path;
 
     await db.promise().query(
       `UPDATE activities SET
-  title = ?, description = ?, activity_type = ?, status = ?, date = ?,
-    student_level = ?, domain = ?, problem_statement = ?, abstract = ?, team_members = ?, mentor = ?,
-    venue = ?, budget = ?, position = ?, journal_name = ?, publisher = ?, doi = ?, issued_by = ?, certificate_path = ?
-      WHERE id = ? `,
+    title=?, description=?, activity_type=?, status=?, date=?,
+    student_level=?, domain=?, problem_statement=?, abstract=?, team_members=?, mentor_name=?,
+    venue=?, budget=?, position=?, journal_name=?, publisher=?, doi=?, issued_by=?,
+    certificate_path=?, mentor_id=?, mentor_email=?, mentor_type=?, keywords=?
+    WHERE id=?`,
       [
         title || rows[0].title,
         description !== undefined ? description : rows[0].description,
-        activity_type || rows[0].activity_type,
+        effectiveType,
         status || rows[0].status,
         date || rows[0].date,
         student_level !== undefined ? student_level : rows[0].student_level,
@@ -251,7 +328,7 @@ router.put("/:id", isAuthenticated, upload.single("file"), async (req, res) => {
         problem_statement !== undefined ? problem_statement : rows[0].problem_statement,
         abstract !== undefined ? abstract : rows[0].abstract,
         team_members !== undefined ? team_members : rows[0].team_members,
-        mentor !== undefined ? mentor : rows[0].mentor,
+        mentor_name !== undefined ? mentor_name : rows[0].mentor_name,
         venue !== undefined ? venue : rows[0].venue,
         budget !== undefined ? budget : rows[0].budget,
         position !== undefined ? position : rows[0].position,
@@ -260,15 +337,57 @@ router.put("/:id", isAuthenticated, upload.single("file"), async (req, res) => {
         doi !== undefined ? doi : rows[0].doi,
         issued_by !== undefined ? issued_by : rows[0].issued_by,
         certificate_path,
+        resolvedMentorId,
+        mentor_email !== undefined ? mentor_email : rows[0].mentor_email,
+        mentor_type !== undefined ? mentor_type : rows[0].mentor_type,
+        keywords !== undefined ? keywords : rows[0].keywords,
         activityId
       ]
     );
-
     res.json({ message: "Activity updated successfully", certificate_path });
   } catch (err) {
     console.error("Edit activity error:", err);
     res.status(500).json({ error: "Failed to update activity" });
   }
+});
+
+// Helper for approval logic
+const processApproval = async (req, res, targetStatus) => {
+  const { reason } = req.body;
+  const activityId = req.params.id;
+
+  try {
+    const [rows] = await db.promise().query("SELECT * FROM activities WHERE id = ?", [activityId]);
+    if (rows.length === 0) return res.status(404).json({ error: "Project not found" });
+
+    // Auth check
+    if (req.session.user.role !== 'admin' && rows[0].mentor_id !== req.session.user.id) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    await db.promise().query("UPDATE activities SET status = ? WHERE id = ?", [targetStatus, activityId]);
+
+    const message = targetStatus === 'Approved'
+      ? `Your project "${rows[0].title}" has been approved!`
+      : `Your project "${rows[0].title}" has been rejected. ${reason ? 'Reason: ' + reason : ''}`;
+
+    await createNotification(rows[0].created_by, message);
+    res.json({ message: `Project ${targetStatus.toLowerCase()} successfully` });
+  } catch (err) {
+    console.error("Approval error:", err);
+    res.status(500).json({ error: "Failed to update" });
+  }
+};
+
+// Requirement 5: Specific endpoints
+router.put("/:id/approve", isAuthenticated, hasRole(["staff", "admin"]), (req, res) => processApproval(req, res, 'Approved'));
+router.put("/:id/reject", isAuthenticated, hasRole(["staff", "admin"]), (req, res) => processApproval(req, res, 'Rejected'));
+
+// Original endpoint for compatibility
+router.put("/:id/status", isAuthenticated, hasRole(["staff", "admin"]), async (req, res) => {
+  const { status } = req.body;
+  if (!['Approved', 'Rejected'].includes(status)) return res.status(400).json({ error: "Invalid status" });
+  return processApproval(req, res, status);
 });
 
 
@@ -286,8 +405,8 @@ router.delete("/:id", isAuthenticated, async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ error: "Activity not found" });
     }
-    if (userRole !== "admin" && rows[0].user_id !== userId) {
-      return res.status(403).json({ error: "You can only delete your own activities" });
+    if (userRole !== "admin" && rows[0].user_id !== userId && rows[0].mentor_id !== userId) {
+      return res.status(403).json({ error: "You can only delete your own activities or your mentees' activities" });
     }
 
     await db.promise().query("DELETE FROM activities WHERE id = ?", [activityId]);

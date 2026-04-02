@@ -11,7 +11,10 @@ const app = express();
 const path = require("path");
 const authRoutes = require("./routes/auth");
 const activityRoutes = require("./routes/activities");
-const userRoutes = require("./routes/users");   // ✅ ADD THIS
+const userRoutes = require("./routes/users");
+const projectRoutes = require("./routes/projects");
+const dashboardRoutes = require("./routes/dashboard");
+const notificationRoutes = require("./routes/notifications");
 
 // ===== Middleware =====
 app.use(cors({
@@ -40,7 +43,10 @@ app.use(session({
 // ⭐ Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/activities", activityRoutes);
-app.use("/api/users", userRoutes);   // ✅ THIS FIXES PROFILE
+app.use("/api/users", userRoutes);
+app.use("/api/projects", projectRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // ===== Test Route =====
 app.get("/", (req, res) => {
