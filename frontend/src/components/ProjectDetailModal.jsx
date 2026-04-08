@@ -12,10 +12,10 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const TYPE_COLORS = {
-    'Internally Funded Project': { bg: '#e3f2fd', color: '#1565c0' },
-    'Conference': { bg: '#e8f5e9', color: '#2e7d32' },
-    'Hackathon': { bg: '#fff3e0', color: '#e65100' },
-    'Publication': { bg: '#f3e5f5', color: '#6a1b9a' },
+    'Internally Funded Projects': { bg: '#e3f2fd', color: '#1565c0' },
+    'Conferences': { bg: '#e8f5e9', color: '#2e7d32' },
+    'Hackathons': { bg: '#fff3e0', color: '#e65100' },
+    'Journal Publication': { bg: '#f3e5f5', color: '#6a1b9a' },
     'Achievement': { bg: '#ffebee', color: '#c62828' },
 };
 
@@ -32,8 +32,10 @@ const ProjectDetailModal = ({ open, onClose, project, onDelete }) => {
     if (!project) return null;
 
     const isOwner = user?.id === project.student_id;
-    const canEdit = isOwner && project.status === 'Submitted';
-    const canDelete = (isOwner && project.status === 'Submitted') ||
+    const canEdit = (isOwner && (project.approval_status === 'Pending' || project.approval_status === null || project.approval_status === 'Rejected')) ||
+        user?.role === 'admin' ||
+        (user?.role === 'staff' && user?.id === project.mentor_id);
+    const canDelete = (isOwner && (project.approval_status === 'Pending' || project.approval_status === null)) ||
         user?.role === 'admin' ||
         (user?.role === 'staff' && user?.id === project.mentor_id);
 
@@ -65,8 +67,17 @@ const ProjectDetailModal = ({ open, onClose, project, onDelete }) => {
                             label={project.status}
                             size="small"
                             sx={{
-                                bgcolor: STATUS_COLORS[project.status]?.bg || '#f5f5f5',
-                                color: STATUS_COLORS[project.status]?.color || '#757575',
+                                bgcolor: '#f5f5f5',
+                                color: '#757575',
+                                fontWeight: 'bold', borderRadius: 1.5, textTransform: 'uppercase', fontSize: '0.7rem'
+                            }}
+                        />
+                        <Chip
+                            label={project.approval_status || 'Pending'}
+                            size="small"
+                            sx={{
+                                bgcolor: STATUS_COLORS[project.approval_status]?.bg || STATUS_COLORS['Submitted'].bg,
+                                color: STATUS_COLORS[project.approval_status]?.color || STATUS_COLORS['Submitted'].color,
                                 fontWeight: 'bold', borderRadius: 1.5, textTransform: 'uppercase', fontSize: '0.7rem'
                             }}
                         />
@@ -79,6 +90,16 @@ const ProjectDetailModal = ({ open, onClose, project, onDelete }) => {
             </DialogTitle>
 
             <DialogContent dividers sx={{ px: 4, py: 3 }}>
+                {project.feedback && (
+                    <Box mb={3} p={2} borderRadius={2} bgcolor={project.approval_status === 'Rejected' ? '#ffebee' : '#e8f5e9'} border="1px solid" borderColor={project.approval_status === 'Rejected' ? '#ef9a9a' : '#a5d6a7'}>
+                        <Typography variant="subtitle2" fontWeight="bold" color={project.approval_status === 'Rejected' ? '#c62828' : '#2e7d32'} mb={0.5}>
+                            {project.approval_status === 'Rejected' ? 'Rejection Reason / Feedback' : 'Mentor Feedback'}
+                        </Typography>
+                        <Typography variant="body2" color="text.primary">
+                            {project.feedback}
+                        </Typography>
+                    </Box>
+                )}
                 <Grid container spacing={4}>
                     {/* LEFT COLUMN: Main Info */}
                     <Grid item xs={12} md={7}>
@@ -96,7 +117,7 @@ const ProjectDetailModal = ({ open, onClose, project, onDelete }) => {
                         </Box>
 
                         {/* Section 2: Abstract (if Publication or Project) */}
-                        {(project.abstract || (project.activity_type === 'Publication' && project.abstract)) && (
+                        {(project.abstract || (project.activity_type === 'Journal Publication' && project.abstract)) && (
                             <Box mb={4}>
                                 <Typography variant="subtitle2" sx={sectionTitleSx}>
                                     <Info fontSize="small" color="primary" />
@@ -110,6 +131,12 @@ const ProjectDetailModal = ({ open, onClose, project, onDelete }) => {
 
                         {/* Section 3: Extra Meta Fields */}
                         <Grid container spacing={2}>
+                            {project.date && (
+                                <Grid item xs={12} sm={6}>
+                                    <Typography variant="caption" color="text.secondary" fontWeight="bold">ACTIVITY DATE</Typography>
+                                    <Typography variant="body2">{new Date(project.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</Typography>
+                                </Grid>
+                            )}
                             {project.venue && (
                                 <Grid item xs={12} sm={6}>
                                     <Typography variant="caption" color="text.secondary" fontWeight="bold">VENUE/HOST</Typography>
@@ -164,8 +191,8 @@ const ProjectDetailModal = ({ open, onClose, project, onDelete }) => {
                                 RESEARCH TEAM
                             </Typography>
                             <Box display="flex" flexWrap="wrap" gap={1}>
-                                {project.team_members ? (
-                                    project.team_members.split(',').map((name, i) => (
+                                {project.dynamic_team_members || project.team_members ? (
+                                    (project.dynamic_team_members || project.team_members).split(',').map((name, i) => (
                                         <Chip key={i} label={name.trim()} size="small" variant="outlined" sx={{ borderRadius: 1 }} />
                                     ))
                                 ) : (
@@ -200,7 +227,7 @@ const ProjectDetailModal = ({ open, onClose, project, onDelete }) => {
                             {project.certificate_path ? (
                                 <Button
                                     fullWidth variant="contained" color="primary" disableElevation
-                                    startIcon={<Download />} component="a" href={`http://localhost:5050${project.certificate_path}`} target="_blank"
+                                    startIcon={<Download />} component="a" href={`http://localhost:4000${project.certificate_path}`} target="_blank"
                                     sx={{ borderRadius: 2, py: 1, fontWeight: 'bold' }}
                                 >
                                     View Documentation
@@ -236,7 +263,7 @@ const ProjectDetailModal = ({ open, onClose, project, onDelete }) => {
                     </Button>
                 )}
             </DialogActions>
-        </Dialog>
+        </Dialog >
     );
 };
 

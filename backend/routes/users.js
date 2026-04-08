@@ -79,30 +79,32 @@ router.get(
     async (req, res) => {
         try {
             let query = `
-        SELECT id, name, email, register_number, department, year
-        FROM users
-        WHERE role = 'student'
+        SELECT u.id, u.name, u.email, u.register_number, u.department, u.year,
+               COUNT(a.id) AS activity_count
+        FROM users u
+        LEFT JOIN activities a ON u.id = a.user_id
+        WHERE u.role = 'student'
       `;
             const params = [];
 
             const { year, department, search } = req.query;
 
             if (year) {
-                query += ' AND year = ?';
+                query += ' AND u.year = ?';
                 params.push(year);
             }
 
             if (department) {
-                query += ' AND department = ?';
+                query += ' AND u.department = ?';
                 params.push(department);
             }
 
             if (search) {
-                query += ' AND (name LIKE ? OR register_number LIKE ? OR email LIKE ?)';
+                query += ' AND (u.name LIKE ? OR u.register_number LIKE ? OR u.email LIKE ?)';
                 params.push(`%${search}%`, `%${search}%`, `%${search}%`);
             }
 
-            query += ' ORDER BY name ASC';
+            query += ' GROUP BY u.id, u.name, u.email, u.register_number, u.department, u.year ORDER BY u.name ASC';
 
             const [results] = await db.promise().query(query, params);
             res.json(results);

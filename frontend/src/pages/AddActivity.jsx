@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import {
     Typography, Box, Paper, TextField, Button,
-    Grid, MenuItem, Alert, CircularProgress, Divider, FormHelperText
+    Grid, MenuItem, Alert, CircularProgress, Divider, FormHelperText, IconButton
 } from '@mui/material';
-import { CloudUpload, Save, Layers, Subject, Group, UploadFile } from '@mui/icons-material';
+import { CloudUpload, Save, Layers, Subject, Group, UploadFile, AddCircle, Delete } from '@mui/icons-material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-const ACTIVITY_TYPES = ['Internally Funded Project', 'Conference', 'Hackathon', 'Publication', 'Achievement'];
+const ACTIVITY_TYPES = ['Internally Funded Projects', 'Conferences', 'Hackathons', 'Journal Publication', 'Achievement'];
 const STUDENT_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
 const DOMAINS = ['Education', 'Manufacturing', 'Technology', 'Medical', 'Agriculture'];
-const PROJECT_TYPE = 'Internally Funded Project';
+const PROJECT_TYPE = 'Internally Funded Projects';
 
 const sectionHeaderSx = { display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 };
 const sectionIconSx = (color) => ({ p: 1, borderRadius: 2, bgcolor: `${color}.light`, display: 'flex' });
@@ -22,12 +22,15 @@ const AddActivity = () => {
     const [message, setMessage] = useState({ text: '', type: '' });
     const [mentors, setMentors] = useState([]);
     const [file, setFile] = useState(null);
+    const [dragActive, setDragActive] = useState(false);
+    const [previewUrl, setPreviewUrl] = useState(null);
+    const [teamMembers, setTeamMembers] = useState([]);
 
     const [form, setForm] = useState({
         activity_type: '', student_level: '', title: '', description: '',
         status: 'Submitted', date: '', domain: '', keywords: '',
         mentor_id: '', mentor_name: '', mentor_email: '', mentor_type: 'internal',
-        problem_statement: '', abstract: '', team_members: '',
+        problem_statement: '', abstract: '',
         venue: '', budget: '', position: '',
         journal_name: '', publisher: '', doi: '', issued_by: '',
     });
@@ -41,10 +44,49 @@ const AddActivity = () => {
     const isProject = form.activity_type === PROJECT_TYPE;
 
     const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
-    const handleFileChange = (e) => setFile(e.target.files[0]);
+    const handleFileChange = (e) => {
+        const selectedFile = e.target.files?.[0];
+        if (selectedFile) {
+            setFile(selectedFile);
+            if (selectedFile.type.startsWith('image/')) {
+                setPreviewUrl(URL.createObjectURL(selectedFile));
+            } else {
+                setPreviewUrl(null);
+            }
+        }
+    };
+
+    const handleDrag = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setDragActive(true);
+        } else if (e.type === "dragleave") {
+            setDragActive(false);
+        }
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            const selectedFile = e.dataTransfer.files[0];
+            setFile(selectedFile);
+            if (selectedFile.type.startsWith('image/')) {
+                setPreviewUrl(URL.createObjectURL(selectedFile));
+            } else {
+                setPreviewUrl(null);
+            }
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!file) {
+            setMessage({ text: 'Document upload is required. Please provide a proof document.', type: 'error' });
+            window.scrollTo(0, 0); return;
+        }
         if (!form.title || !form.activity_type) {
             setMessage({ text: 'Title & Activity Type are required.', type: 'error' });
             window.scrollTo(0, 0); return;
@@ -65,6 +107,7 @@ const AddActivity = () => {
         setLoading(true);
         const formData = new FormData();
         Object.keys(form).forEach(key => formData.append(key, form[key]));
+        if (teamMembers.length > 0) formData.append('team_members', JSON.stringify(teamMembers));
         if (file) formData.append('file', file);
         try {
             await axios.post('/api/activities/add', formData, {
@@ -74,7 +117,12 @@ const AddActivity = () => {
             window.scrollTo(0, 0);
             setTimeout(() => navigate('/dashboard'), 1500);
         } catch (err) {
-            setMessage({ text: err.response?.data?.error || 'Submission failed.', type: 'error' });
+            const backendError = err.response?.data?.error;
+            const backendMsg = err.response?.data?.message;
+            setMessage({
+                text: backendMsg || backendError || 'Submission failed. Please check your connection.',
+                type: 'error'
+            });
             window.scrollTo(0, 0);
         } finally {
             setLoading(false);
@@ -83,7 +131,7 @@ const AddActivity = () => {
 
     const renderAcademicFields = () => {
         const type = form.activity_type;
-        if (type === 'Hackathon') return (
+        if (type === 'Hackathons') return (
             <>
                 <Grid item xs={12} md={6}>
                     <TextField fullWidth label="Event Venue / Location" name="venue" value={form.venue} onChange={handleChange} placeholder="e.g. Anna University, Chennai" />
@@ -96,7 +144,7 @@ const AddActivity = () => {
                 </Grid>
             </>
         );
-        if (type === 'Conference') return (
+        if (type === 'Conferences') return (
             <>
                 <Grid item xs={12} md={6}>
                     <TextField fullWidth label="Conference Name & Venue" name="venue" value={form.venue} onChange={handleChange} placeholder="e.g. IEEE ICCCSP 2025, Chennai" />
@@ -117,7 +165,7 @@ const AddActivity = () => {
                 </Grid>
             </>
         );
-        if (type === 'Publication') return (
+        if (type === 'Journal Publication') return (
             <>
                 <Grid item xs={12} md={6}>
                     <TextField fullWidth label="Journal Name" name="journal_name" value={form.journal_name} onChange={handleChange} placeholder="e.g. IEEE Transactions on Neural Networks" />
@@ -206,12 +254,17 @@ const AddActivity = () => {
                     )}
 
                     <Grid item xs={12}>
-                        <TextField
-                            fullWidth multiline rows={3}
-                            label="Team Members (if any)"
-                            name="team_members" value={form.team_members} onChange={handleChange}
-                            placeholder="e.g. Ravi Kumar, Priya S, Arun M (comma separated)"
-                        />
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                            <Typography variant="subtitle2" fontWeight="700" color="text.secondary">TEAM MEMBERS (OPTIONAL)</Typography>
+                            <Button size="small" startIcon={<AddCircle />} onClick={() => setTeamMembers([...teamMembers, { name: '', email: '' }])}>Add Member</Button>
+                        </Box>
+                        {teamMembers.map((tm, idx) => (
+                            <Box key={idx} display="flex" gap={2} mb={2} alignItems="center">
+                                <TextField size="small" fullWidth label="Name" value={tm.name} onChange={(e) => { const newArr = [...teamMembers]; newArr[idx].name = e.target.value; setTeamMembers(newArr); }} required />
+                                <TextField size="small" fullWidth label="Email" type="email" value={tm.email} onChange={(e) => { const newArr = [...teamMembers]; newArr[idx].email = e.target.value; setTeamMembers(newArr); }} required />
+                                <IconButton color="error" onClick={() => setTeamMembers(teamMembers.filter((_, i) => i !== idx))}><Delete /></IconButton>
+                            </Box>
+                        ))}
                     </Grid>
                 </Grid>
             </Paper>
@@ -276,7 +329,7 @@ const AddActivity = () => {
                         </Grid>
                         <Grid item xs={12} md={6}>
                             <TextField select fullWidth label="Current Status" name="status" value={form.status} onChange={handleChange}>
-                                <MenuItem value="Submitted">Submitted</MenuItem>
+                                <MenuItem value="Submitted">Submitted / Planned</MenuItem>
                                 <MenuItem value="In Progress">In Progress</MenuItem>
                                 <MenuItem value="Completed">Completed</MenuItem>
                             </TextField>
@@ -286,7 +339,7 @@ const AddActivity = () => {
                             <TextField fullWidth required label="Official Title" name="title" value={form.title} onChange={handleChange} placeholder="e.g. Smart Grid Monitoring using IoT and AI" />
                         </Grid>
                         <Grid item xs={12} md={4}>
-                            <TextField fullWidth label="Primary Date" name="date" type="date" value={form.date} onChange={handleChange} InputLabelProps={{ shrink: true }} />
+                            <TextField fullWidth required label="Primary Date" name="date" type="date" value={form.date} onChange={handleChange} InputLabelProps={{ shrink: true }} />
                         </Grid>
 
                         <Grid item xs={12}>
@@ -315,23 +368,39 @@ const AddActivity = () => {
                 <Paper elevation={0} sx={paperSx}>
                     <Box sx={sectionHeaderSx}>
                         <Box sx={sectionIconSx('success')}><UploadFile sx={{ color: 'success.main', fontSize: 22 }} /></Box>
-                        <Typography variant="h6" fontWeight="800">4. Upload Certificate / Report</Typography>
+                        <Typography variant="h6" fontWeight="800">4. Upload Certificate / Report * (Required)</Typography>
                     </Box>
                     <Divider sx={{ mb: 3 }} />
-                    <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" p={5} border="2px dashed" borderColor="grey.300" borderRadius={3} bgcolor="grey.50"
-                        sx={{ transition: 'all 0.2s', cursor: 'pointer', '&:hover': { borderColor: 'primary.main', bgcolor: 'primary.light', opacity: 0.9 } }}>
-                        <CloudUpload color="primary" sx={{ fontSize: 52, mb: 2 }} />
-                        <Typography variant="subtitle1" fontWeight="bold" mb={0.5}>Upload Verified Document</Typography>
+
+                    {!file && <Typography color="error" variant="body2" mb={2}>Document upload is strictly required for your submission.</Typography>}
+
+                    <Box
+                        onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
+                        display="flex" flexDirection="column" alignItems="center" justifyContent="center" p={5}
+                        border="2px dashed" borderColor={dragActive ? 'primary.main' : (file ? 'success.main' : 'error.main')}
+                        borderRadius={3} bgcolor={dragActive ? 'primary.light' : 'grey.50'}
+                        sx={{ transition: 'all 0.2s', cursor: 'pointer', '&:hover': { borderColor: 'primary.main', bgcolor: 'primary.light', opacity: 0.9 } }}
+                        component="label"
+                    >
+                        <CloudUpload color={file ? "success" : "primary"} sx={{ fontSize: 52, mb: 2 }} />
+                        <Typography variant="subtitle1" fontWeight="bold" mb={0.5}>
+                            {dragActive ? 'Drop File Here...' : 'Drag & Drop or Click to Upload'}
+                        </Typography>
                         <Typography variant="body2" color="textSecondary" mb={3}>PDF, JPEG, PNG — Max 5 MB</Typography>
-                        <Button variant="contained" component="label" disableElevation sx={{ borderRadius: 2, px: 4, fontWeight: 'bold' }}>
-                            Browse Files
-                            <input type="file" hidden accept="image/*,.pdf" onChange={handleFileChange} />
-                        </Button>
+                        <input type="file" required hidden accept="image/*,.pdf" onChange={handleFileChange} />
+
                         {file && (
-                            <Box mt={3} p={2} borderRadius={2} bgcolor="white" border="1px solid" borderColor="grey.200"
-                                display="flex" width="100%" maxWidth={420} justifyContent="space-between" alignItems="center" boxShadow="0 2px 8px rgba(0,0,0,0.05)">
-                                <Typography variant="body2" fontWeight="bold" noWrap sx={{ maxWidth: '80%' }}>{file.name}</Typography>
-                                <Typography variant="caption" color="success.main" fontWeight="bold">Ready</Typography>
+                            <Box mt={3} p={2} borderRadius={2} bgcolor="white" border="1px solid" borderColor="success.main"
+                                display="flex" flexDirection="column" width="100%" maxWidth={420} alignItems="center" boxShadow="0 2px 8px rgba(0,0,0,0.05)">
+
+                                {previewUrl && (
+                                    <Box component="img" src={previewUrl} alt="Document Preview" width="100%" maxHeight={200} sx={{ objectFit: 'contain', mb: 2, borderRadius: 1 }} />
+                                )}
+
+                                <Box display="flex" width="100%" justifyContent="space-between" alignItems="center">
+                                    <Typography variant="body2" fontWeight="bold" noWrap sx={{ maxWidth: '80%' }}>{file.name}</Typography>
+                                    <Typography variant="caption" color="success.main" fontWeight="bold">Uploaded ✓</Typography>
+                                </Box>
                             </Box>
                         )}
                     </Box>
@@ -340,7 +409,7 @@ const AddActivity = () => {
                 {/* ── FOOTER ── */}
                 <Box display="flex" justifyContent="flex-end" gap={2} mb={4} p={3} bgcolor="#f8f9fa" borderRadius={3} border="1px solid" borderColor="grey.200">
                     <Button variant="outlined" size="large" onClick={() => navigate(-1)} sx={{ borderRadius: 2, px: 4, bgcolor: 'white' }}>Cancel</Button>
-                    <Button type="submit" variant="contained" size="large" disableElevation disabled={loading}
+                    <Button type="submit" variant="contained" size="large" disableElevation disabled={loading || !file}
                         startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <Save />}
                         sx={{ borderRadius: 2, px: 5, fontWeight: 'bold' }}>
                         {loading ? 'Submitting...' : 'Save Activity'}

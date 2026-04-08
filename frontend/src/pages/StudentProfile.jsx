@@ -138,7 +138,7 @@ const StudentProfile = () => {
                       <TableCell align="center">
                         {act.certificate_path ? (
                           <Tooltip title="View Attachment">
-                            <IconButton size="small" color="primary" href={'http://localhost:5050' + act.certificate_path} target="_blank">
+                            <IconButton size="small" color="primary" href={'http://localhost:4000' + act.certificate_path} target="_blank">
                               <OpenInNew fontSize="small" />
                             </IconButton>
                           </Tooltip>

@@ -2,23 +2,10 @@
 -- Academic Portal Database Schema (Unified Activities)
 -- ====================================================
 
-SET FOREIGN_KEY_CHECKS = 0;
-
--- Drop old tables if they exist
-DROP TABLE IF EXISTS achievements;
-DROP TABLE IF EXISTS publications;
-DROP TABLE IF EXISTS hackathons;
-DROP TABLE IF EXISTS conferences;
-DROP TABLE IF EXISTS projects;
-DROP TABLE IF EXISTS activities;
-DROP TABLE IF EXISTS users;
-
-SET FOREIGN_KEY_CHECKS = 1;
-
 -- ====================================================
 -- USERS TABLE
 -- ====================================================
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -33,9 +20,10 @@ CREATE TABLE users (
 -- ====================================================
 -- ACTIVITIES TABLE (Unified with Dynamic Fields)
 -- ====================================================
-CREATE TABLE activities (
+CREATE TABLE IF NOT EXISTS activities (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
+    created_by INT,
     title VARCHAR(255) NOT NULL,
     description TEXT,
     activity_type ENUM(
@@ -51,6 +39,11 @@ CREATE TABLE activities (
     abstract TEXT,
     team_members TEXT,
     mentor VARCHAR(255),
+    mentor_id INT,
+    mentor_name VARCHAR(255),
+    mentor_email VARCHAR(255),
+    mentor_type VARCHAR(50),
+    keywords VARCHAR(500),
     venue VARCHAR(255),
     budget VARCHAR(100),
     position VARCHAR(100),
@@ -59,10 +52,29 @@ CREATE TABLE activities (
     doi VARCHAR(255),
     issued_by VARCHAR(255),
     certificate_path VARCHAR(500),
-    status ENUM('ongoing', 'completed') NOT NULL DEFAULT 'ongoing',
+    status VARCHAR(50) DEFAULT 'Submitted',
+    approval_status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
+    feedback TEXT,
     date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_activity_per_user (title, activity_type, created_by),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- ====================================================
+-- ACTIVITY MEMBERS (Dynamic team members)
+-- ====================================================
+CREATE TABLE IF NOT EXISTS activity_members (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    activity_id INT NOT NULL,
+    user_id INT,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending',
+    invited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    responded_at TIMESTAMP NULL,
+    FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- ====================================================
@@ -103,4 +115,26 @@ CREATE TABLE IF NOT EXISTS project_documents (
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
     FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- ====================================================
+-- NOTIFICATIONS
+-- ====================================================
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    message TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- ====================================================
+-- OTP VERIFICATIONS
+-- ====================================================
+CREATE TABLE IF NOT EXISTS otp_verifications (
+    email VARCHAR(255) PRIMARY KEY,
+    otp VARCHAR(10) NOT NULL,
+    user_data JSON NOT NULL,
+    expires_at TIMESTAMP NOT NULL
 );

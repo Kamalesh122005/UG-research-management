@@ -33,7 +33,22 @@ const storage = multer.diskStorage({
     cb(null, Date.now() + "-" + file.originalname);
   },
 });
-const upload = multer({ storage });
+const fileFilter = (req, file, cb) => {
+  const allowed = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+  if (allowed.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Invalid file type. Only PDF, JPG, and PNG are allowed"), false);
+  }
+};
+const upload = multer({ storage, fileFilter });
+
+const uploadFileMiddleware = (req, res, next) => {
+  upload.single("file")(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    next();
+  });
+};
 
 // ===================================================
 // GET /api/activities/stats  — Real aggregate counts
@@ -71,15 +86,17 @@ router.get("/stats", isAuthenticated, async (req, res) => {
 router.get("/my", isAuthenticated, async (req, res) => {
   try {
     const [rows] = await db.promise().query(
-      `SELECT a.*, u.name AS student_name,
+      `SELECT DISTINCT a.*, u.name AS student_name,
               COALESCE(m.name, a.mentor_name) AS mentor_display_name,
-              COALESCE(m.email, a.mentor_email) AS mentor_display_email
+              COALESCE(m.email, a.mentor_email) AS mentor_display_email,
+              (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM activity_members WHERE activity_id = a.id AND status = 'accepted') AS dynamic_team_members
        FROM activities a
        JOIN users u ON a.created_by = u.id
        LEFT JOIN users m ON a.mentor_id = m.id
-       WHERE a.created_by = ?
+       LEFT JOIN activity_members am ON a.id = am.activity_id AND am.user_id = ? AND am.status = 'accepted'
+       WHERE a.created_by = ? OR am.id IS NOT NULL
        ORDER BY a.created_at DESC`,
-      [req.session.user.id]
+      [req.session.user.id, req.session.user.id]
     );
     res.json(rows || []);
   } catch (err) {
@@ -95,7 +112,8 @@ router.get("/my", isAuthenticated, async (req, res) => {
 router.get("/mentor", isAuthenticated, hasRole(["staff", "admin"]), async (req, res) => {
   try {
     const [rows] = await db.promise().query(
-      `SELECT a.*, u.name AS student_name, u.department, u.register_number, u.year AS user_year
+      `SELECT a.*, u.name AS student_name, u.department, u.register_number, u.year AS user_year,
+              (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM activity_members WHERE activity_id = a.id AND status = 'accepted') AS dynamic_team_members
        FROM activities a
        JOIN users u ON a.user_id = u.id
        WHERE a.mentor_id = ?
@@ -119,11 +137,12 @@ router.get("/all", isAuthenticated, async (req, res) => {
   let query = `
     SELECT a.*, u.name AS student_name, u.department, u.register_number, u.year AS user_year,
            COALESCE(m.name, a.mentor_name) AS mentor_display_name,
-           COALESCE(m.email, a.mentor_email) AS mentor_display_email
+           COALESCE(m.email, a.mentor_email) AS mentor_display_email,
+           (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM activity_members WHERE activity_id = a.id AND status = 'accepted') AS dynamic_team_members
     FROM activities a
     JOIN users u ON a.created_by = u.id
     LEFT JOIN users m ON a.mentor_id = m.id
-    WHERE a.status = 'Approved'
+    WHERE a.approval_status = 'Approved'
   `;
   const params = [];
 
@@ -137,8 +156,8 @@ router.get("/all", isAuthenticated, async (req, res) => {
   if (date_to) { query += ` AND a.date <= ?`; params.push(date_to); }
   if (keyword && keyword.trim()) {
     const k = `%${keyword.trim()}%`;
-    query += ` AND (a.title LIKE ? OR a.keywords LIKE ? OR a.description LIKE ?)`;
-    params.push(k, k, k);
+    query += ` AND (a.title LIKE ? OR a.keywords LIKE ? OR a.description LIKE ? OR a.date LIKE ?)`;
+    params.push(k, k, k, k);
   }
   if (mentor_id && mentor_id !== "All") { query += ` AND a.mentor_id = ?`; params.push(mentor_id); }
 
@@ -183,7 +202,10 @@ router.get(
 // ===================================================
 // POST /api/activities/add  — Add activity w/ File Upload
 // ===================================================
-router.post("/add", isAuthenticated, upload.single("file"), async (req, res) => {
+router.post("/add", isAuthenticated, uploadFileMiddleware, async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "Document upload is required" });
+  }
   const {
     title, description, activity_type, status, date,
     student_level, domain, problem_statement, abstract, team_members,
@@ -200,13 +222,34 @@ router.post("/add", isAuthenticated, upload.single("file"), async (req, res) => 
     return res.status(400).json({ error: "Mentor assignment is required for all submissions." });
   }
 
-  const validTypes = ["Internally Funded Project", "Conference", "Hackathon", "Publication", "Achievement"];
+  const validTypes = ["Internally Funded Projects", "Conferences", "Hackathons", "Journal Publication", "Achievement"];
   if (!validTypes.includes(activity_type)) {
     return res.status(400).json({ error: "Invalid activity type: " + activity_type });
   }
 
   if (!domain || !VALID_DOMAINS.includes(domain)) {
     return res.status(400).json({ error: "Invalid domain selected" });
+  }
+
+  // ===================================================
+  // REDUNDANCY CHECK: Prevent duplicate submissions (Strict)
+  // ===================================================
+  try {
+    const trimmedTitle = title.trim();
+    const [existing] = await db.promise().query(
+      "SELECT id FROM activities WHERE LOWER(TRIM(title)) = LOWER(?) AND activity_type = ? AND created_by = ?",
+      [trimmedTitle, activity_type, req.session.user.id]
+    );
+
+    if (existing.length > 0) {
+      return res.status(409).json({
+        error: "Activity Redundancy Detected",
+        message: `You have already submitted an activity titled '${trimmedTitle}' under ${activity_type}. Please edit the existing entry or use a unique title.`
+      });
+    }
+  } catch (err) {
+    console.error("Redundancy check error:", err);
+    return res.status(500).json({ error: "Internal server error during validation" });
   }
 
   const actStatus = status || 'Submitted';
@@ -232,11 +275,38 @@ router.post("/add", isAuthenticated, upload.single("file"), async (req, res) => 
       [
         req.session.user.id, req.session.user.id, title, description || null, activity_type, actStatus, date || null,
         student_level || null, domain, problem_statement || null, abstract || null,
-        team_members || null, mentor_name || null, venue || null, budget || null, position || null,
+        null, mentor_name || null, venue || null, budget || null, position || null,
         journal_name || null, publisher || null, doi || null, issued_by || null, certificate_path,
         resolvedMentorId, mentor_email || null, mentor_type || 'internal', keywords || null
       ]
     );
+
+    const activityId = result.insertId;
+
+    // Owner automatically accepted
+    await db.promise().query(
+      `INSERT INTO activity_members (activity_id, user_id, name, email, status, responded_at) VALUES (?, ?, ?, ?, 'accepted', NOW())`,
+      [activityId, req.session.user.id, req.session.user.name, req.session.user.email]
+    );
+
+    // Team members
+    if (team_members) {
+      try {
+        const parsed = JSON.parse(team_members);
+        for (const tm of parsed) {
+          if (tm.email === req.session.user.email) continue;
+          const [[u]] = await db.promise().query(`SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))`, [tm.email]);
+          const uid = u ? u.id : null;
+          await db.promise().query(
+            `INSERT INTO activity_members (activity_id, user_id, name, email, status) VALUES (?, ?, ?, ?, 'pending')`,
+            [activityId, uid, tm.name, tm.email]
+          );
+          if (uid) {
+            await createNotification(uid, `You have been invited to join a project/activity: "${title}"`);
+          }
+        }
+      } catch (e) { }
+    }
 
     // Trigger notification to mentor
     if (resolvedMentorId) {
@@ -246,10 +316,16 @@ router.post("/add", isAuthenticated, upload.single("file"), async (req, res) => 
       );
     }
 
-    res.status(201).json({ message: "Activity submitted successfully", status: actStatus, activity_id: result.insertId, certificate_path });
+    res.status(201).json({ message: "Activity submitted successfully", status: actStatus, activity_id: activityId, certificate_path });
   } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) {
+      return res.status(409).json({
+        error: "Activity Redundancy Detected",
+        message: `You have already submitted an activity with the title '${title}' under '${activity_type || 'this category'}'. Please use a unique title.`
+      });
+    }
     console.error("Add activity error:", err);
-    res.status(500).json({ error: "Failed to add activity" });
+    res.status(500).json({ error: "Failed to save activity. Please try again." });
   }
 
 });
@@ -258,7 +334,7 @@ router.post("/add", isAuthenticated, upload.single("file"), async (req, res) => 
 // ===================================================
 // PUT /api/activities/:id  — Edit activity (own only, or admin) w/ File
 // ===================================================
-router.put("/:id", isAuthenticated, upload.single("file"), async (req, res) => {
+router.put("/:id", isAuthenticated, uploadFileMiddleware, async (req, res) => {
   const {
     title, description, activity_type, status, date,
     student_level, domain, problem_statement, abstract, team_members,
@@ -272,7 +348,7 @@ router.put("/:id", isAuthenticated, upload.single("file"), async (req, res) => {
   try {
     const [rows] = await db.promise().query("SELECT * FROM activities WHERE id = ?", [activityId]);
     if (rows.length === 0) return res.status(404).json({ error: "Activity not found" });
-    if (userRole !== "admin" && rows[0].user_id !== userId) return res.status(403).json({ error: "You can only edit your own activities" });
+    if (userRole !== "admin" && rows[0].created_by !== userId && rows[0].mentor_id !== userId) return res.status(403).json({ error: "You can only edit your own activities" });
 
     const validStatuses = ['Submitted', 'Approved', 'Rejected', 'In Progress', 'Completed'];
     if (status && !validStatuses.includes(status)) {
@@ -327,7 +403,7 @@ router.put("/:id", isAuthenticated, upload.single("file"), async (req, res) => {
         domain !== undefined ? domain : rows[0].domain,
         problem_statement !== undefined ? problem_statement : rows[0].problem_statement,
         abstract !== undefined ? abstract : rows[0].abstract,
-        team_members !== undefined ? team_members : rows[0].team_members,
+        null,
         mentor_name !== undefined ? mentor_name : rows[0].mentor_name,
         venue !== undefined ? venue : rows[0].venue,
         budget !== undefined ? budget : rows[0].budget,
@@ -344,10 +420,42 @@ router.put("/:id", isAuthenticated, upload.single("file"), async (req, res) => {
         activityId
       ]
     );
+
+    // If team_members is provided in PUT, update activity_members
+    if (team_members) {
+      try {
+        const parsed = JSON.parse(team_members);
+
+        // delete old members except owner
+        await db.promise().query(
+          "DELETE FROM activity_members WHERE activity_id = ? AND user_id != ?",
+          [activityId, rows[0].created_by]
+        );
+
+        for (const tm of parsed) {
+          if (tm.name.trim() === rows[0].student_name) continue;
+          let email = tm.email;
+          const [[u]] = email ? await db.promise().query(`SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))`, [email]) : [[null]];
+          const uid = u ? u.id : null;
+          await db.promise().query(
+            `INSERT INTO activity_members (activity_id, user_id, name, email, status) VALUES (?, ?, ?, ?, 'pending')`,
+            [activityId, uid, tm.name, email || '']
+          );
+        }
+      } catch (err) {
+        console.error("Team member update error in PUT", err);
+      }
+    }
     res.json({ message: "Activity updated successfully", certificate_path });
   } catch (err) {
-    console.error("Edit activity error:", err);
-    res.status(500).json({ error: "Failed to update activity" });
+    if (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) {
+      return res.status(409).json({
+        error: "Activity Redundancy Detected",
+        message: `Another activity already exists with the title '${title}' in this category for you. Please use a unique title.`
+      });
+    }
+    console.error("Update activity error:", err);
+    res.status(500).json({ error: "Failed to update activity. Please try again." });
   }
 });
 
@@ -365,7 +473,7 @@ const processApproval = async (req, res, targetStatus) => {
       return res.status(403).json({ error: "Not authorized" });
     }
 
-    await db.promise().query("UPDATE activities SET status = ? WHERE id = ?", [targetStatus, activityId]);
+    await db.promise().query("UPDATE activities SET approval_status = ?, feedback = ? WHERE id = ?", [targetStatus, reason || null, activityId]);
 
     const message = targetStatus === 'Approved'
       ? `Your project "${rows[0].title}" has been approved!`
@@ -414,6 +522,53 @@ router.delete("/:id", isAuthenticated, async (req, res) => {
   } catch (err) {
     console.error("Delete activity error:", err);
     res.status(500).json({ error: "Failed to delete activity" });
+  }
+});
+
+
+// ============================================
+// GET /api/activities/invitations
+// ============================================
+router.get('/invitations', isAuthenticated, async (req, res) => {
+  try {
+    const [rows] = await db.promise().query(
+      `SELECT am.id as invite_id, a.id as activity_id, a.title as project_title, u.name as owner_name, am.invited_at
+       FROM activity_members am
+       JOIN activities a ON am.activity_id = a.id
+       JOIN users u ON a.created_by = u.id
+       WHERE am.user_id = ? AND am.status = 'pending'
+       ORDER BY am.invited_at DESC`,
+      [req.session.user.id]
+    );
+    res.json(rows || []);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch invitations' });
+  }
+});
+
+// ============================================
+// PUT /api/activities/invite/respond
+// ============================================
+router.put('/invite/respond', isAuthenticated, async (req, res) => {
+  const { invite_id, response } = req.body; // response: 'accepted' or 'rejected'
+  try {
+    const [rows] = await db.promise().query("SELECT * FROM activity_members WHERE id = ? AND user_id = ?", [invite_id, req.session.user.id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Invite not found' });
+
+    await db.promise().query(
+      "UPDATE activity_members SET status = ?, responded_at = NOW() WHERE id = ?",
+      [response, invite_id]
+    );
+
+    // Notify owner
+    const [[activity]] = await db.promise().query("SELECT created_by, title FROM activities WHERE id = ?", [rows[0].activity_id]);
+    if (activity) {
+      await createNotification(activity.created_by, `${req.session.user.name} has ${response} your invitation to join "${activity.title}"`);
+    }
+
+    res.json({ message: `Invitation ${response} successfully` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to respond to invitation' });
   }
 });
 

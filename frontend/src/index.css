@@ -1,68 +1,297 @@
+/* ============================================================
+   GLOBAL DESIGN SYSTEM — ResearchHub Academic Portal
+   Light/Dark Mode via CSS Variables + MUI Integration
+   ============================================================ */
+
+/* ------ Smooth theme transition ------ */
+*,
+*::before,
+*::after {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.15s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.2);
+  color: #2563EB;
+}
+
+/* ------ CSS Variables ------ */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Backgrounds */
+  --bg-primary: #F8FAFC;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #F1F5F9;
+
+  /* Text hierarchy */
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+
+  /* Borders */
+  --border: #E2E8F0;
+  --border-strong: #CBD5E1;
+
+  /* Accent */
+  --accent-primary: #2563EB;
+  --accent-primary-light: #EFF6FF;
+
+  /* Status */
+  --status-approved-bg: rgba(5, 150, 105, 0.1);
+  --status-approved-text: #059669;
+  --status-pending-bg: rgba(217, 119, 6, 0.1);
+  --status-pending-text: #D97706;
+  --status-rejected-bg: rgba(220, 38, 38, 0.1);
+  --status-rejected-text: #DC2626;
+  --status-progress-bg: rgba(37, 99, 235, 0.1);
+  --status-progress-text: #2563EB;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.08);
+
+  /* Typography */
+  font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
+  scroll-behavior: smooth;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+/* ------ Dark mode overrides ------ */
+html.dark,
+body.dark {
+  --bg-primary: #0F172A;
+  --bg-secondary: #1E293B;
+  --bg-tertiary: #0F172A;
+
+  --text-primary: #F1F5F9;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+
+  --border: #334155;
+  --border-strong: #475569;
+
+  --accent-primary: #60A5FA;
+  --accent-primary-light: #1E3A5F;
+
+  --status-approved-bg: rgba(52, 211, 153, 0.12);
+  --status-approved-text: #34D399;
+  --status-pending-bg: rgba(251, 191, 36, 0.12);
+  --status-pending-text: #FBBF24;
+  --status-rejected-bg: rgba(248, 113, 113, 0.12);
+  --status-rejected-text: #F87171;
+  --status-progress-bg: rgba(96, 165, 250, 0.12);
+  --status-progress-text: #60A5FA;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.5);
 }
 
+/* ------ Base resets ------ */
+html,
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
+  padding: 0;
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+#root {
   min-height: 100vh;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+/* ------ Links ------ */
+a {
+  color: var(--accent-primary);
+  text-decoration: none;
 }
 
-button {
+a:hover {
+  text-decoration: underline;
+}
+
+/* ------ Scrollbar (subtle) ------ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ------ MUI overrides that CSS can handle globally ------ */
+
+/* Fix MUI table in dark mode */
+html.dark .MuiTableContainer-root,
+html.dark .MuiTable-root {
+  background-color: var(--bg-secondary) !important;
+}
+
+html.dark .MuiTableCell-root {
+  color: var(--text-primary) !important;
+  border-color: var(--border) !important;
+}
+
+html.dark .MuiTableCell-head {
+  color: var(--text-secondary) !important;
+  background-color: var(--bg-primary) !important;
+}
+
+html.dark .MuiTableRow-root:hover {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Fix MUI inputs in dark mode */
+html.dark .MuiInputBase-input,
+html.dark .MuiOutlinedInput-input,
+html.dark .MuiSelect-select {
+  color: var(--text-primary) !important;
+}
+
+html.dark .MuiInputLabel-root {
+  color: var(--text-secondary) !important;
+}
+
+html.dark .MuiInputLabel-root.Mui-focused {
+  color: var(--accent-primary) !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: var(--text-muted) !important;
+  opacity: 1;
+}
+
+/* Fix MUI menu/select dropdown in dark mode */
+html.dark .MuiMenu-paper,
+html.dark .MuiPopover-paper {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border) !important;
+}
+
+html.dark .MuiMenuItem-root {
+  color: var(--text-primary) !important;
+}
+
+html.dark .MuiMenuItem-root:hover {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Fix MUI Select icon */
+html.dark .MuiSelect-icon {
+  color: var(--text-secondary) !important;
+}
+
+/* Fix MUI Chip in dark mode */
+html.dark .MuiChip-root {
+  color: var(--text-primary) !important;
+}
+
+/* Fix MUI Dialog */
+html.dark .MuiDialog-paper {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border) !important;
+}
+
+html.dark .MuiDialogTitle-root {
+  color: var(--text-primary) !important;
+}
+
+html.dark .MuiDialogContent-root {
+  color: var(--text-secondary) !important;
+}
+
+/* Fix MUI Divider */
+html.dark .MuiDivider-root {
+  border-color: var(--border) !important;
+}
+
+/* Fix MUI Tooltip */
+html.dark .MuiTooltip-tooltip {
+  background-color: #334155 !important;
+  color: var(--text-primary) !important;
+}
+
+/* Fix MUI Alert */
+html.dark .MuiAlert-root {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Fix typography colors forced to black in light mode */
+.MuiTypography-root {
+  color: inherit;
+}
+
+/* Fix MUI Tabs */
+html.dark .MuiTab-root {
+  color: var(--text-secondary) !important;
+}
+
+html.dark .MuiTab-root.Mui-selected {
+  color: var(--accent-primary) !important;
+}
+
+/* Fix MUI LinearProgress */
+html.dark .MuiLinearProgress-root {
+  background-color: var(--border) !important;
+}
+
+/* Fix Recharts tooltips */
+html.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Status badge utility classes (optional, for non-MUI elements) */
+.badge-approved {
+  background: var(--status-approved-bg);
+  color: var(--status-approved-text);
   border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+.badge-pending {
+  background: var(--status-pending-bg);
+  color: var(--status-pending-text);
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge-rejected {
+  background: var(--status-rejected-bg);
+  color: var(--status-rejected-text);
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }

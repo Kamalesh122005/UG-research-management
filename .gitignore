@@ -101,3 +101,13 @@ backend/*.sql.gz
 
 # Vite cache
 frontend/node_modules/.vite/
+
+# Scratch & Dev Utilities
+backend/check-*.js
+backend/fix-*.js
+backend/update-db*.js
+backend/db-check-*.js
+*.txt
+test_*.js
+*.cjs
+*.test.js

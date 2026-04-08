@@ -26,7 +26,7 @@ router.get("/stats", isAuthenticated, async (req, res) => {
         if (role === "admin") {
             const [[projectCount]] = await db.promise().query("SELECT COUNT(*) AS total FROM activities");
             const [[studentCount]] = await db.promise().query("SELECT COUNT(*) AS total FROM users WHERE role = 'student'");
-            const [[staffCount]] = await db.promise().query("SELECT COUNT(*) AS total FROM users WHERE role = 'staff'");
+            const [[staffCount]] = await db.promise().query("SELECT COUNT(*) AS total FROM users WHERE role IN ('staff', 'admin')");
             counts = {
                 total_projects: projectCount.total,
                 total_students: studentCount.total,
@@ -52,12 +52,16 @@ router.get("/stats", isAuthenticated, async (req, res) => {
             params
         );
 
-        // 3. Domain Distribution (Pie Chart)
+        // 3. Domain Distribution — restricted to the 5 approved domains
+        const VALID_DOMAINS = ['Agriculture', 'Education', 'Medical', 'Technology', 'Manufacturing'];
+        const domainPlaceholders = VALID_DOMAINS.map(() => '?').join(', ');
         const [domainRows] = await db.promise().query(
-            `SELECT domain as name, COUNT(*) AS count 
-       FROM activities ${whereClause} 
-       GROUP BY domain`,
-            params
+            `SELECT domain as name, COUNT(*) AS count
+       FROM activities ${whereClause}
+       AND domain IN (${domainPlaceholders})
+       GROUP BY domain
+       ORDER BY FIELD(domain, 'Agriculture', 'Education', 'Medical', 'Technology', 'Manufacturing')`,
+            [...params, ...VALID_DOMAINS]
         );
 
         // 4. Monthly Submissions (Line Chart)
@@ -71,11 +75,19 @@ router.get("/stats", isAuthenticated, async (req, res) => {
             params
         );
 
-        // 5. Status Distribution (Pie Chart)
+        // 5. Status Distribution (activity progress: Submitted, In Progress, Completed)
         const [statusRows] = await db.promise().query(
             `SELECT status as name, COUNT(*) AS count 
        FROM activities ${whereClause} 
        GROUP BY status`,
+            params
+        );
+
+        // 6. Approval Status Distribution (mentor approval: Pending, Approved, Rejected)
+        const [approvalRows] = await db.promise().query(
+            `SELECT COALESCE(approval_status, 'Pending') as name, COUNT(*) AS count 
+       FROM activities ${whereClause} 
+       GROUP BY COALESCE(approval_status, 'Pending')`,
             params
         );
 
@@ -84,7 +96,8 @@ router.get("/stats", isAuthenticated, async (req, res) => {
             type_distribution: typeRows,
             domain_distribution: domainRows,
             monthly_submissions: monthlyRows,
-            status_distribution: statusRows
+            status_distribution: statusRows,
+            approval_distribution: approvalRows
         });
 
     } catch (err) {

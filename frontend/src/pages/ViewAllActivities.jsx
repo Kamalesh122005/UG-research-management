@@ -3,7 +3,7 @@ import {
     Box, Typography, Paper, Chip, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, CircularProgress,
     MenuItem, TextField, Grid, Button, Collapse, Tooltip, IconButton,
-    Avatar, Divider
+    Avatar, Divider, useTheme
 } from '@mui/material';
 import {
     FilterList, FolderOff, OpenInNew,
@@ -13,45 +13,59 @@ import {
 import axios from 'axios';
 import ProjectDetailModal from '../components/ProjectDetailModal';
 
-const ACTIVITY_TYPES = ['All', 'Internally Funded Project', 'Conference', 'Hackathon', 'Publication', 'Achievement'];
+const ACTIVITY_TYPES = ['All', 'Internally Funded Projects', 'Conferences', 'Hackathons', 'Journal Publication', 'Achievement'];
 const STUDENT_LEVELS = ['All', '1st Year', '2nd Year', '3rd Year', '4th Year'];
 const DEPARTMENTS = ['All', 'Computer Science', 'Electronics', 'Mechanical', 'Civil', 'Information Technology', 'Electrical', 'Chemical', 'Biotechnology'];
 const DOMAINS = ['All', 'Education', 'Manufacturing', 'Technology', 'Medical', 'Agriculture'];
 
 const TYPE_COLORS = {
-    'Internally Funded Project': { bg: '#e3f2fd', color: '#1565c0' },
-    'Conference': { bg: '#e8f5e9', color: '#2e7d32' },
-    'Hackathon': { bg: '#fff3e0', color: '#e65100' },
-    'Publication': { bg: '#f3e5f5', color: '#6a1b9a' },
-    'Achievement': { bg: '#ffebee', color: '#c62828' },
+    'Internally Funded Projects': { bg: '#EFF6FF', color: '#2563EB', darkBg: 'rgba(37,99,235,0.15)', darkColor: '#60A5FA' },
+    'Conferences': { bg: '#ECFDF5', color: '#059669', darkBg: 'rgba(5,150,105,0.15)', darkColor: '#34D399' },
+    'Hackathons': { bg: '#FFFBEB', color: '#D97706', darkBg: 'rgba(217,119,6,0.15)', darkColor: '#FBBF24' },
+    'Journal Publication': { bg: '#F5F3FF', color: '#7C3AED', darkBg: 'rgba(124,58,237,0.15)', darkColor: '#A78BFA' },
+    'Achievement': { bg: '#FEF2F2', color: '#DC2626', darkBg: 'rgba(220,38,38,0.15)', darkColor: '#F87171' },
 };
 
 const STATUS_COLORS = {
-    Submitted: { bg: '#e3f2fd', color: '#1565c0' },
-    Approved: { bg: '#e8f5e9', color: '#2e7d32' },
-    Rejected: { bg: '#ffebee', color: '#c62828' },
+    Submitted: { bg: '#FFFBEB', color: '#D97706', darkBg: 'rgba(217,119,6,0.15)', darkColor: '#FBBF24' },
+    Approved: { bg: '#ECFDF5', color: '#059669', darkBg: 'rgba(5,150,105,0.15)', darkColor: '#34D399' },
+    Rejected: { bg: '#FEF2F2', color: '#DC2626', darkBg: 'rgba(220,38,38,0.15)', darkColor: '#F87171' },
+    'In Progress': { bg: '#EFF6FF', color: '#2563EB', darkBg: 'rgba(37,99,235,0.15)', darkColor: '#60A5FA' },
+    Completed: { bg: '#F0FDF4', color: '#16A34A', darkBg: 'rgba(22,163,74,0.15)', darkColor: '#4ADE80' },
 };
 
+const getC = (map, key, isDark) => {
+    const t = map[key];
+    if (!t) return isDark ? { bg: 'rgba(100,116,139,0.15)', color: '#94A3B8' } : { bg: '#F1F5F9', color: '#64748B' };
+    return isDark ? { bg: t.darkBg, color: t.darkColor } : { bg: t.bg, color: t.color };
+};
+const CBADGE = (c) => ({ bgcolor: c.bg, color: c.color, fontWeight: 700, fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.04em', borderRadius: '8px', border: 'none' });
+
+
 const STATS_CARDS = [
-    { title: 'Total Activities', key: 'total', icon: <FolderShared />, color: 'primary' },
-    { title: 'In Progress', key: 'inProgress', icon: <TrendingUp />, color: 'warning' },
-    { title: 'Accomplished', key: 'completed', icon: <CheckCircle />, color: 'success' },
-    { title: 'New Submissions', key: 'submitted', icon: <School />, color: 'secondary' },
+    { title: 'Total Activities', key: 'total', icon: <FolderShared />, gradient: 'linear-gradient(135deg, #2563EB, #1D4ED8)' },
+    { title: 'In Progress', key: 'inProgress', icon: <TrendingUp />, gradient: 'linear-gradient(135deg, #D97706, #B45309)' },
+    { title: 'Accomplished', key: 'completed', icon: <CheckCircle />, gradient: 'linear-gradient(135deg, #059669, #047857)' },
+    { title: 'New Submissions', key: 'submitted', icon: <School />, gradient: 'linear-gradient(135deg, #7C3AED, #6D28D9)' },
 ];
 
-const StatCard = ({ title, count, icon, color }) => (
-    <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3, display: 'flex', alignItems: 'center', gap: 2, height: '100%', border: '1px solid', borderColor: 'grey.100' }}>
-        <Avatar sx={{ bgcolor: `${color}.light`, color: `${color}.main`, width: 48, height: 48 }}>
-            {icon}
-        </Avatar>
-        <Box>
-            <Typography variant="h5" fontWeight="800">{count}</Typography>
-            <Typography variant="caption" color="textSecondary" fontWeight="600" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</Typography>
+const StatCard = ({ title, count, icon, gradient }) => (
+    <Paper elevation={1} sx={{ p: 2.5, borderRadius: '14px', border: 'none', transition: 'transform 0.2s', '&:hover': { transform: 'translateY(-2px)' } }}>
+        <Box display="flex" alignItems="center" gap={1.5}>
+            <Box sx={{ width: 44, height: 44, borderRadius: '12px', background: gradient, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {React.cloneElement(icon, { sx: { color: '#fff', fontSize: 20 } })}
+            </Box>
+            <Box>
+                <Typography variant="h5" fontWeight={800} color="text.primary">{count}</Typography>
+                <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ letterSpacing: '0.04em', textTransform: 'uppercase' }}>{title}</Typography>
+            </Box>
         </Box>
     </Paper>
 );
 
 const ViewAllActivities = () => {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [activities, setActivities] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filters, setFilters] = useState({
@@ -208,26 +222,31 @@ const ViewAllActivities = () => {
 
             <Grid container spacing={4}>
                 <Grid item xs={12} lg={9}>
-                    <Grid container spacing={3} mb={4}>
+                    <Grid container spacing={2} mb={3}>
                         {STATS_CARDS.map(card => (
                             <Grid item xs={12} sm={6} md={3} key={card.key}>
-                                <StatCard title={card.title} count={metrics[card.key]} icon={card.icon} color={card.color} />
+                                <StatCard title={card.title} count={metrics[card.key]} icon={card.icon} gradient={card.gradient} />
                             </Grid>
                         ))}
                     </Grid>
 
-                    <Paper elevation={1} sx={{ borderRadius: 3, overflow: 'hidden', border: '1px solid', borderColor: 'grey.200', mb: 4 }}>
-                        <Box p={3} bgcolor="white" borderBottom="1px solid" borderColor="grey.200" display="flex" justifyContent="space-between" alignItems="center">
-                            <Typography variant="h6" fontWeight="bold">Activity Ledger</Typography>
-                            <Chip label={`${metrics.total} Matching Records`} size="small" color="primary" sx={{ fontWeight: 'bold', borderRadius: 1.5 }} />
+                    <Paper elevation={0} sx={{ borderRadius: '16px', overflow: 'hidden', mb: 4 }}>
+                        <Box px={3} py={2} borderBottom="1px solid" borderColor="divider" display="flex" justifyContent="space-between" alignItems="center">
+                            <Typography variant="h6" fontWeight={700}>Activity Ledger</Typography>
+                            <Chip label={`${metrics.total} records`} size="small" color="primary" sx={{ fontWeight: 700, borderRadius: '8px', fontSize: '0.72rem' }} />
                         </Box>
 
                         {loading ? (
                             <Box display="flex" justifyContent="center" py={12}><CircularProgress /></Box>
                         ) : activities.length === 0 ? (
-                            <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" py={12} bgcolor="#fafafa">
-                                <FolderOff sx={{ fontSize: 64, color: 'grey.400', mb: 2 }} />
-                                <Typography variant="h6" fontWeight="bold" color="textSecondary">No data points found.</Typography>
+                            <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" py={14} px={2}>
+                                <Box sx={{ width: 72, height: 72, borderRadius: '20px', bgcolor: 'primary.light', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+                                    <FolderOff sx={{ fontSize: 36, color: 'primary.main' }} />
+                                </Box>
+                                <Typography variant="h6" fontWeight={700} color="text.primary" mb={0.5}>No activities found</Typography>
+                                <Typography variant="body2" color="text.secondary" textAlign="center" maxWidth={320}>
+                                    Try adjusting your filters or check back later when new activities are submitted.
+                                </Typography>
                             </Box>
                         ) : (
                             <TableContainer sx={{ maxHeight: 650 }}>
@@ -252,28 +271,31 @@ const ViewAllActivities = () => {
                                                 onClick={() => setSelectedAct(act)}
                                             >
                                                 <TableCell sx={{ py: 2 }}>
-                                                    <Typography fontWeight="bold" variant="body2" color="text.primary">{act.title}</Typography>
-                                                    <Box display="flex" gap={1} flexWrap="wrap" mt={0.5}>
-                                                        {act.domain && <Chip label={act.domain} size="small" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 'bold', borderRadius: 1, bgcolor: '#e8f4fd', color: '#1565c0' }} />}
-                                                        {act.mentor_name && <Chip label={`Mentor: ${act.mentor_display_name}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 'bold', borderRadius: 1 }} />}
+                                                    <Typography fontWeight={700} variant="body2" color="text.primary">{act.title}</Typography>
+                                                    <Box display="flex" gap={0.5} flexWrap="wrap" mt={0.5}>
+                                                        {act.domain && <Chip label={act.domain} size="small" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700, borderRadius: '8px', bgcolor: isDark ? 'rgba(96,165,250,0.15)' : '#EFF6FF', color: isDark ? '#60A5FA' : '#2563EB' }} />}
+                                                        {act.mentor_display_name && <Chip label={`Mentor: ${act.mentor_display_name}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600, borderRadius: '8px' }} />}
                                                     </Box>
                                                 </TableCell>
                                                 <TableCell sx={{ py: 2 }}>
-                                                    <Chip label={act.activity_type} size="small" sx={{ bgcolor: TYPE_COLORS[act.activity_type]?.bg, color: TYPE_COLORS[act.activity_type]?.color, fontWeight: 'bold', fontSize: '0.7rem', borderRadius: 1.5 }} />
+                                                    <Chip label={act.activity_type} size="small" sx={CBADGE(getC(TYPE_COLORS, act.activity_type, isDark))} />
                                                 </TableCell>
                                                 <TableCell sx={{ py: 2 }}>
-                                                    <Typography variant="body2" fontWeight="600">{act.student_name}</Typography>
+                                                    <Typography variant="body2" fontWeight={600} color="text.primary">{act.student_name}</Typography>
                                                     <Typography variant="caption" color="text.secondary">{act.register_number || 'N/A'}</Typography>
                                                 </TableCell>
                                                 <TableCell sx={{ py: 2 }}>
-                                                    <Typography variant="body2">{act.department || 'N/A'}</Typography>
+                                                    <Typography variant="body2" color="text.secondary">{act.department || 'N/A'}</Typography>
                                                 </TableCell>
                                                 <TableCell sx={{ py: 2 }}>
-                                                    <Typography variant="body2" fontWeight="500">{act.date ? new Date(act.date).toLocaleDateString('en-GB') : '—'}</Typography>
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        {act.date ? new Date(act.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                                                    </Typography>
                                                 </TableCell>
                                                 <TableCell sx={{ py: 2 }}>
-                                                    <Chip label={act.status} size="small" sx={{ bgcolor: STATUS_COLORS[act.status]?.bg, color: STATUS_COLORS[act.status]?.color, fontWeight: 'bold', fontSize: '0.7rem', textTransform: 'uppercase', borderRadius: 1.5 }} />
+                                                    <Chip label={act.status} size="small" sx={CBADGE(getC(STATUS_COLORS, act.status, isDark))} />
                                                 </TableCell>
+
                                                 <TableCell align="center" sx={{ py: 2 }} onClick={(e) => e.stopPropagation()}>
                                                     <Box display="flex" justifyContent="center" gap={1}>
                                                         <Tooltip title="View Details">
@@ -283,7 +305,7 @@ const ViewAllActivities = () => {
                                                         </Tooltip>
                                                         {act.certificate_path && (
                                                             <Tooltip title="View Attachment">
-                                                                <IconButton size="small" color="secondary" href={`http://localhost:5050${act.certificate_path}`} target="_blank">
+                                                                <IconButton size="small" color="secondary" href={`http://localhost:4000${act.certificate_path}`} target="_blank">
                                                                     <OpenInNew fontSize="small" />
                                                                 </IconButton>
                                                             </Tooltip>
@@ -301,23 +323,26 @@ const ViewAllActivities = () => {
 
                 <Grid item xs={12} lg={3}>
                     <Box sx={{ position: 'sticky', top: 90 }}>
-                        <Paper elevation={1} sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'grey.200', mb: 3 }}>
-                            <Box display="flex" alignItems="center" gap={1} mb={2}><DataUsage color="primary" /><Typography variant="h6" fontWeight="bold">Top Domains</Typography></Box>
-                            <Divider sx={{ mb: 2 }} />
+                        <Paper elevation={0} sx={{ p: 3, borderRadius: '16px', mb: 3 }}>
+                            <Typography variant="h6" fontWeight={700} mb={0.5}>Top Domains</Typography>
+                            <Typography variant="body2" color="text.secondary" mb={2}>Most active research areas</Typography>
                             {metrics.topDomains.map(([domain, count], i) => (
-                                <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                    <Typography variant="body2" fontWeight="600">{domain}</Typography>
-                                    <Chip label={count} size="small" sx={{ fontWeight: 'bold', bgcolor: 'grey.100' }} />
+                                <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, p: 1.5, borderRadius: '10px', bgcolor: i === 0 ? 'primary.light' : 'transparent', transition: 'all 0.15s', '&:hover': { bgcolor: 'action.hover' } }}>
+                                    <Box display="flex" alignItems="center" gap={1}>
+                                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: i === 0 ? 'primary.main' : 'text.secondary', opacity: i === 0 ? 1 : 0.4 }} />
+                                        <Typography variant="body2" fontWeight={600}>{domain}</Typography>
+                                    </Box>
+                                    <Chip label={count} size="small" sx={{ fontWeight: 700, fontSize: '0.68rem', borderRadius: '8px', bgcolor: 'background.default', border: '1px solid', borderColor: 'divider' }} />
                                 </Box>
                             ))}
                         </Paper>
-                        <Paper elevation={1} sx={{ p: 3, borderRadius: 3, border: '1px solid', borderColor: 'grey.200' }}>
-                            <Box display="flex" alignItems="center" gap={1} mb={2}><Assignment color="secondary" /><Typography variant="h6" fontWeight="bold">Recent Submissions</Typography></Box>
-                            <Divider sx={{ mb: 2 }} />
+                        <Paper elevation={0} sx={{ p: 3, borderRadius: '16px' }}>
+                            <Typography variant="h6" fontWeight={700} mb={0.5}>Recent Submissions</Typography>
+                            <Typography variant="body2" color="text.secondary" mb={2}>Latest activity in the system</Typography>
                             {metrics.recent.map((act, i) => (
-                                <Box key={i} sx={{ mb: 2, cursor: 'pointer' }} onClick={() => setSelectedAct(act)}>
-                                    <Typography variant="body2" fontWeight="bold" noWrap>{act.title}</Typography>
-                                    <Typography variant="caption" color="textSecondary">{act.student_name} • {act.activity_type}</Typography>
+                                <Box key={i} sx={{ mb: 2, p: 1.5, borderRadius: '10px', cursor: 'pointer', transition: 'all 0.15s', '&:hover': { bgcolor: 'action.hover' } }} onClick={() => setSelectedAct(act)}>
+                                    <Typography variant="body2" fontWeight={700} noWrap color="text.primary">{act.title}</Typography>
+                                    <Typography variant="caption" color="text.secondary">{act.student_name} · {act.activity_type}</Typography>
                                 </Box>
                             ))}
                         </Paper>

@@ -12,7 +12,22 @@ const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, 'uploads/'),
     filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
 });
-const upload = multer({ storage });
+const fileFilter = (req, file, cb) => {
+    const allowed = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (allowed.includes(file.mimetype)) {
+        cb(null, true);
+    } else {
+        cb(new Error("Invalid file type. Only PDF, JPG, and PNG are allowed"), false);
+    }
+};
+const upload = multer({ storage, fileFilter });
+
+const uploadFileMiddleware = (req, res, next) => {
+    upload.single("file")(req, res, (err) => {
+        if (err) return res.status(400).json({ error: err.message });
+        next();
+    });
+};
 
 const VALID_DOMAINS = ['Education', 'Manufacturing', 'Technology', 'Medical', 'Agriculture'];
 const VALID_STATUSES = ['Submitted', 'In Progress', 'Completed'];
@@ -154,7 +169,11 @@ router.get('/:id', isAuthenticated, async (req, res) => {
 // ──────────────────────────────────────────────────────────────────
 // POST /api/projects/add  — student creates a project (status=pending)
 // ──────────────────────────────────────────────────────────────────
-router.post('/add', isAuthenticated, hasRole(['student']), async (req, res) => {
+router.post('/add', isAuthenticated, hasRole(['student']), uploadFileMiddleware, async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: "Document upload is required" });
+    }
+
     const { title, description, domain, keywords, mentor_id, mentor_name, mentor_email, mentor_type, member_ids } = req.body;
     const userId = req.session.user.id;
 
@@ -198,6 +217,13 @@ router.post('/add', isAuthenticated, hasRole(['student']), async (req, res) => {
                 );
             }
         }
+
+        // Add uploaded document
+        const filePath = `/uploads/${req.file.filename}`;
+        await db.promise().query(
+            'INSERT INTO project_documents (project_id, file_path, uploaded_by) VALUES (?, ?, ?)',
+            [projectId, filePath, userId]
+        );
 
         res.status(201).json({ message: 'Project submitted successfully', project_id: projectId });
     } catch (err) {
@@ -328,7 +354,7 @@ router.get('/:id/documents', isAuthenticated, async (req, res) => {
 // POST /api/projects/:id/documents  — upload doc
 // Students: before approval only. Mentors: after approval. Admin: always.
 // ──────────────────────────────────────────────────────────────────
-router.post('/:id/documents', isAuthenticated, upload.single('file'), async (req, res) => {
+router.post('/:id/documents', isAuthenticated, uploadFileMiddleware, async (req, res) => {
     const projectId = req.params.id;
     const userId = req.session.user.id;
     const userRole = req.session.user.role;

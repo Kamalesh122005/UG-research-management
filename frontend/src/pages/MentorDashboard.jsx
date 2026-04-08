@@ -2,31 +2,46 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Paper, Chip, Tab, Tabs, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, CircularProgress, Button,
-    Tooltip, IconButton, TextField, Grid, MenuItem, Collapse, Alert
+    Tooltip, IconButton, TextField, Grid, MenuItem, Collapse, Alert, useTheme
 } from '@mui/material';
 import {
-    CheckCircle, Cancel, Visibility, FilterList, FolderOff, Refresh
+    CheckCircle, Cancel, Visibility, FilterList, FolderOff, Refresh, Edit
 } from '@mui/icons-material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import ProjectDetailModal from '../components/ProjectDetailModal';
 
 const DOMAINS = ['All', 'Education', 'Manufacturing', 'Technology', 'Medical', 'Agriculture'];
 const STATUSES = ['All', 'Submitted', 'In Progress', 'Completed'];
 
 const STATUS_STYLES = {
-    Submitted: { bg: '#e3f2fd', color: '#1565c0' },
-    'In Progress': { bg: '#fff3e0', color: '#e65100' },
-    Completed: { bg: '#e8f5e9', color: '#2e7d32' },
-    Approved: { bg: '#e8f5e9', color: '#2e7d32' },
-    Rejected: { bg: '#ffebee', color: '#c62828' },
+    Submitted: { bg: '#FFFBEB', color: '#D97706', darkBg: 'rgba(217,119,6,0.15)', darkColor: '#FBBF24' },
+    'In Progress': { bg: '#EFF6FF', color: '#2563EB', darkBg: 'rgba(37,99,235,0.15)', darkColor: '#60A5FA' },
+    Completed: { bg: '#F0FDF4', color: '#16A34A', darkBg: 'rgba(22,163,74,0.15)', darkColor: '#4ADE80' },
+    Approved: { bg: '#ECFDF5', color: '#059669', darkBg: 'rgba(5,150,105,0.15)', darkColor: '#34D399' },
+    Rejected: { bg: '#FEF2F2', color: '#DC2626', darkBg: 'rgba(220,38,38,0.15)', darkColor: '#F87171' },
+    Pending: { bg: '#FFFBEB', color: '#D97706', darkBg: 'rgba(217,119,6,0.15)', darkColor: '#FBBF24' },
+};
+const getSS = (key, isDark) => {
+    const s = STATUS_STYLES[key] || STATUS_STYLES['Submitted'];
+    return isDark ? { bg: s.darkBg, color: s.darkColor } : { bg: s.bg, color: s.color };
 };
 
-const ProjectTable = ({ projects, loading, showActions, onApprove, onReject, navigate }) => {
+
+
+
+const ProjectTable = ({ projects, loading, showActions, onApprove, onReject, onView }) => {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
+
     if (loading) return <Box display="flex" justifyContent="center" py={10}><CircularProgress /></Box>;
     if (projects.length === 0) return (
         <Box display="flex" flexDirection="column" alignItems="center" py={10}>
-            <FolderOff sx={{ fontSize: 56, color: 'grey.300', mb: 2 }} />
-            <Typography color="textSecondary">No projects found.</Typography>
+            <Box sx={{ width: 64, height: 64, borderRadius: '18px', bgcolor: isDark ? 'rgba(37,99,235,0.15)' : '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+                <FolderOff sx={{ fontSize: 32, color: 'primary.main' }} />
+            </Box>
+            <Typography variant="h6" fontWeight={700} color="text.primary" mb={0.5}>No projects found</Typography>
+            <Typography variant="body2" color="text.secondary">Projects assigned to you will appear here.</Typography>
         </Box>
     );
     return (
@@ -34,26 +49,27 @@ const ProjectTable = ({ projects, loading, showActions, onApprove, onReject, nav
             <Table>
                 <TableHead>
                     <TableRow>
-                        <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa', color: 'text.secondary' }}>PROJECT</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa', color: 'text.secondary' }}>DOMAIN</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa', color: 'text.secondary' }}>TEAM</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa', color: 'text.secondary' }}>MENTOR</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa', color: 'text.secondary' }}>STATUS</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa', color: 'text.secondary' }}>SUBMITTED</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold', bgcolor: '#f8f9fa', color: 'text.secondary' }}>ACTIONS</TableCell>
+                        <TableCell>Project</TableCell>
+                        <TableCell>Domain</TableCell>
+                        <TableCell>Team</TableCell>
+                        <TableCell>Mentor</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell>Activity Date</TableCell>
+                        <TableCell align="center">Actions</TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>
                     {projects.map(proj => {
-                        const st = STATUS_STYLES[proj.status] || STATUS_STYLES.pending;
+                        const approvalC = getSS(proj.approval_status || 'Pending', isDark);
+                        const domainC = isDark ? { bg: 'rgba(96,165,250,0.15)', color: '#60A5FA' } : { bg: '#EFF6FF', color: '#2563EB' };
                         return (
-                            <TableRow key={proj.id} hover sx={{ '&:nth-of-type(even)': { bgcolor: 'rgba(0,0,0,0.01)' } }}>
+                            <TableRow key={proj.id} hover>
                                 <TableCell>
-                                    <Typography fontWeight="bold" variant="body2">{proj.title}</Typography>
+                                    <Typography fontWeight={700} variant="body2" color="text.primary">{proj.title}</Typography>
                                     <Typography variant="caption" color="text.secondary">{proj.keywords || '—'}</Typography>
                                 </TableCell>
                                 <TableCell>
-                                    <Chip label={proj.domain} size="small" sx={{ fontWeight: 600, fontSize: '0.7rem', bgcolor: '#e8f4fd', color: '#1565c0', borderRadius: 1 }} />
+                                    <Chip label={proj.domain} size="small" sx={{ fontWeight: 700, fontSize: '0.7rem', bgcolor: domainC.bg, color: domainC.color, borderRadius: '8px' }} />
                                 </TableCell>
                                 <TableCell>
                                     <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -61,28 +77,30 @@ const ProjectTable = ({ projects, loading, showActions, onApprove, onReject, nav
                                     </Typography>
                                 </TableCell>
                                 <TableCell>
-                                    <Typography variant="body2" fontWeight={600}>{proj.mentor_display_name}</Typography>
+                                    <Typography variant="body2" fontWeight={600} color="text.primary">{proj.mentor_display_name}</Typography>
                                 </TableCell>
                                 <TableCell>
                                     <Chip
-                                        label={proj.status.toUpperCase()}
+                                        label={proj.approval_status ? proj.approval_status.toUpperCase() : 'PENDING'}
                                         size="small"
-                                        sx={{ fontWeight: 'bold', fontSize: '0.68rem', bgcolor: st.bg, color: st.color, borderRadius: 1.5 }}
+                                        sx={{ fontWeight: 700, fontSize: '0.68rem', bgcolor: approvalC.bg, color: approvalC.color, borderRadius: '8px', textTransform: 'uppercase' }}
                                     />
+                                    <Typography variant="caption" display="block" color="text.secondary" mt={0.5}>{proj.status}</Typography>
                                 </TableCell>
+
                                 <TableCell>
                                     <Typography variant="body2" color="text.secondary">
-                                        {new Date(proj.created_at).toLocaleDateString('en-IN')}
+                                        {proj.date ? new Date(proj.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
                                     </Typography>
                                 </TableCell>
                                 <TableCell align="center">
                                     <Box display="flex" gap={0.5} justifyContent="center">
                                         <Tooltip title="View Details">
-                                            <IconButton size="small" color="primary" onClick={() => navigate(`/projects/${proj.id}`)}>
+                                            <IconButton size="small" color="primary" onClick={() => onView(proj)}>
                                                 <Visibility fontSize="small" />
                                             </IconButton>
                                         </Tooltip>
-                                        {showActions && proj.status === 'Submitted' && (
+                                        {showActions && (!proj.approval_status || proj.approval_status === 'Pending') && (
                                             <>
                                                 <Tooltip title="Approve Project">
                                                     <IconButton size="small" color="success" onClick={() => onApprove(proj.id)}>
@@ -118,6 +136,7 @@ const MentorDashboard = () => {
     const [actionMsg, setActionMsg] = useState({ text: '', type: '' });
     const [showFilters, setShowFilters] = useState(false);
     const [filters, setFilters] = useState({ domain: 'All', status: 'All', keyword: '' });
+    const [selectedProj, setSelectedProj] = useState(null);
 
     const fetchMentee = () => {
         setLoadingMentee(true);
@@ -157,9 +176,9 @@ const MentorDashboard = () => {
     };
 
     const getFilteredMentees = () => {
-        const statuses = ['Submitted', 'Approved', 'Rejected'];
+        const statuses = ['Pending', 'Approved', 'Rejected'];
         const targetStatus = statuses[subTab];
-        return menteeProjects.filter(p => p.status === targetStatus);
+        return menteeProjects.filter(p => !p.approval_status ? targetStatus === 'Pending' : p.approval_status === targetStatus);
     };
 
     const handleFilterChange = e => setFilters({ ...filters, [e.target.name]: e.target.value });
@@ -213,9 +232,9 @@ const MentorDashboard = () => {
                     <Box>
                         <Box borderBottom="1px solid" borderColor="grey.200">
                             <Tabs value={subTab} onChange={(_, v) => setSubTab(v)} sx={{ px: 2 }}>
-                                <Tab label={`Pending (${menteeProjects.filter(p => p.status === 'Submitted').length})`} sx={{ fontWeight: 600, textTransform: 'none' }} />
-                                <Tab label={`Approved (${menteeProjects.filter(p => p.status === 'Approved').length})`} sx={{ fontWeight: 600, textTransform: 'none' }} />
-                                <Tab label={`Rejected (${menteeProjects.filter(p => p.status === 'Rejected').length})`} sx={{ fontWeight: 600, textTransform: 'none' }} />
+                                <Tab label={`Pending (${menteeProjects.filter(p => !p.approval_status || p.approval_status === 'Pending').length})`} sx={{ fontWeight: 600, textTransform: 'none' }} />
+                                <Tab label={`Approved (${menteeProjects.filter(p => p.approval_status === 'Approved').length})`} sx={{ fontWeight: 600, textTransform: 'none' }} />
+                                <Tab label={`Rejected (${menteeProjects.filter(p => p.approval_status === 'Rejected').length})`} sx={{ fontWeight: 600, textTransform: 'none' }} />
                             </Tabs>
                         </Box>
                         <Box p={2} bgcolor="#fffde7" borderBottom="1px solid" borderColor="grey.200">
@@ -234,7 +253,7 @@ const MentorDashboard = () => {
                                 const reason = prompt("Enter rejection reason:");
                                 if (reason !== null) handleStatusUpdate(id, 'Rejected', reason);
                             }}
-                            navigate={navigate}
+                            onView={p => setSelectedProj(p)}
                         />
                     </Box>
                 )}
@@ -281,11 +300,19 @@ const MentorDashboard = () => {
                             projects={allProjects}
                             loading={loadingAll}
                             showActions={false}
-                            navigate={navigate}
+                            onView={p => setSelectedProj(p)}
                         />
                     </Box>
                 )}
             </Paper>
+
+            {selectedProj && (
+                <ProjectDetailModal
+                    open={true}
+                    onClose={() => setSelectedProj(null)}
+                    project={selectedProj}
+                />
+            )}
         </Box>
     );
 };

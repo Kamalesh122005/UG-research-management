@@ -6,6 +6,7 @@ import {
 import { Visibility, VisibilityOff, School, LockOutlined, EmailOutlined } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 // Modern CSS Keyframe Animations
 const float = keyframes`
@@ -36,6 +37,7 @@ const Login = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [fieldErrors, setFieldErrors] = useState({});
 
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -43,12 +45,22 @@ const Login = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setFieldErrors({});
+
+        if (!email.toLowerCase().endsWith('@ssn.edu.in')) {
+            setFieldErrors({ email: 'invalid email id' });
+            return;
+        }
+
         setLoading(true);
         try {
             await login(email, password);
+            toast.success('Login successful! Welcome back.');
             navigate('/dashboard');
         } catch (err) {
-            setError(err.response?.data?.error || 'Invalid credentials. Please verify and try again.');
+            const msg = err.response?.data?.error || 'Invalid credentials.';
+            setError(msg);
+            toast.error(msg);
         } finally {
             setLoading(false);
         }
@@ -144,11 +156,13 @@ const Login = () => {
                                     variant="outlined"
                                     required
                                     fullWidth
-                                    placeholder="administrator@test.com"
+                                    placeholder="yourname@ssn.edu.in"
                                     type="email"
                                     autoFocus
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
+                                    error={!!fieldErrors.email}
+                                    helperText={fieldErrors.email}
                                     InputProps={{
                                         startAdornment: (
                                             <InputAdornment position="start">
@@ -167,7 +181,7 @@ const Login = () => {
                             <Box>
                                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                                     <Typography variant="caption" fontWeight="bold" color="text.secondary" sx={{ letterSpacing: 0.5 }}>PASSWORD</Typography>
-                                    <Link component={RouterLink} to="#" underline="none" color="primary" variant="caption" fontWeight="bold" sx={{ '&:hover': { color: 'primary.dark' } }}>
+                                    <Link component={RouterLink} to="/forgot-password" underline="none" color="primary" variant="caption" fontWeight="bold" sx={{ '&:hover': { color: 'primary.dark' } }}>
                                         Forgot?
                                     </Link>
                                 </Box>

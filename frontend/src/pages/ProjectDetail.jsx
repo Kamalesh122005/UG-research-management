@@ -183,7 +183,7 @@ const ProjectDetail = () => {
                                         />
                                         <ListItemSecondaryAction>
                                             <Tooltip title="View">
-                                                <IconButton size="small" color="primary" href={`http://localhost:5050${doc.file_path}`} target="_blank">
+                                                <IconButton size="small" color="primary" href={`http://localhost:4000${doc.file_path}`} target="_blank">
                                                     <InsertDriveFile fontSize="small" />
                                                 </IconButton>
                                             </Tooltip>

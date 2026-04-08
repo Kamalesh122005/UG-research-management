@@ -3,7 +3,8 @@ import {
     Typography, Box, Paper, TextField, Button,
     Grid, MenuItem, Alert, CircularProgress, Divider, FormHelperText, Container, AppBar, Toolbar, IconButton
 } from '@mui/material';
-import { CloudUpload, Save, Layers, Subject, Group, UploadFile, ArrowBack, Edit } from '@mui/icons-material';
+import { CloudUpload, Save, Layers, Subject, Group, UploadFile, ArrowBack, Edit, AddCircle, Delete } from '@mui/icons-material';
+import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -23,7 +24,9 @@ const EditActivity = () => {
     const [fetching, setFetching] = useState(true);
     const [message, setMessage] = useState({ text: '', type: '' });
     const [mentors, setMentors] = useState([]);
+    const { user } = useAuth();
     const [file, setFile] = useState(null);
+    const [teamMembers, setTeamMembers] = useState([]);
 
     const [form, setForm] = useState({
         activity_type: '', student_level: '', title: '', description: '',
@@ -41,7 +44,8 @@ const EditActivity = () => {
             .catch(() => { });
 
         // Fetch activity data
-        axios.get('/api/activities/my')
+        const endpoint = user?.role === 'student' ? '/api/activities/my' : (user?.role === 'staff' ? '/api/activities/mentor' : '/api/activities/all');
+        axios.get(endpoint)
             .then(res => {
                 const act = res.data.find(a => String(a.id) === String(id));
                 if (act) {
@@ -68,7 +72,12 @@ const EditActivity = () => {
                         publisher: act.publisher || '',
                         doi: act.doi || '',
                         issued_by: act.issued_by || '',
+                        approval_status: act.approval_status || 'Pending'
                     });
+                    if (act.dynamic_team_members) {
+                        const dtm = act.dynamic_team_members.split(',').map(name => ({ name: name.trim(), email: '' }));
+                        setTeamMembers(dtm);
+                    }
                 } else {
                     setMessage({ text: 'Activity not found.', type: 'error' });
                 }
@@ -103,6 +112,7 @@ const EditActivity = () => {
         setLoading(true);
         const formData = new FormData();
         Object.keys(form).forEach(key => formData.append(key, form[key]));
+        if (teamMembers.length > 0) formData.append('team_members', JSON.stringify(teamMembers));
         if (file) formData.append('file', file);
         try {
             await axios.put(`/api/activities/${id}`, formData, {
@@ -243,12 +253,17 @@ const EditActivity = () => {
                     )}
 
                     <Grid item xs={12}>
-                        <TextField
-                            fullWidth multiline rows={3}
-                            label="Team Members (if any)"
-                            name="team_members" value={form.team_members} onChange={handleChange}
-                            placeholder="e.g. Ravi Kumar, Priya S, Arun M (comma separated)"
-                        />
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                            <Typography variant="subtitle2" fontWeight="700" color="text.secondary">TEAM MEMBERS (OPTIONAL)</Typography>
+                            <Button size="small" startIcon={<AddCircle />} onClick={() => setTeamMembers([...teamMembers, { name: '', email: '' }])}>Add Member</Button>
+                        </Box>
+                        {teamMembers.map((tm, idx) => (
+                            <Box key={idx} display="flex" gap={2} mb={2} alignItems="center">
+                                <TextField size="small" fullWidth label="Name" value={tm.name} onChange={(e) => { const newArr = [...teamMembers]; newArr[idx].name = e.target.value; setTeamMembers(newArr); }} required />
+                                <TextField size="small" fullWidth label="Email (Optional when Editing)" type="text" value={tm.email} onChange={(e) => { const newArr = [...teamMembers]; newArr[idx].email = e.target.value; setTeamMembers(newArr); }} />
+                                <IconButton color="error" onClick={() => setTeamMembers(teamMembers.filter((_, i) => i !== idx))}><Delete /></IconButton>
+                            </Box>
+                        ))}
                     </Grid>
                 </Grid>
             </Paper>
@@ -305,7 +320,7 @@ const EditActivity = () => {
                                 <TextField fullWidth required label="Official Title" name="title" value={form.title} onChange={handleChange} />
                             </Grid>
                             <Grid item xs={12} md={4}>
-                                <TextField fullWidth label="Primary Date" name="date" type="date" value={form.date} onChange={handleChange} InputLabelProps={{ shrink: true }} />
+                                <TextField fullWidth required label="Primary Date" name="date" type="date" value={form.date} onChange={handleChange} InputLabelProps={{ shrink: true }} />
                             </Grid>
                             <Grid item xs={12}>
                                 <TextField fullWidth label="Keywords" name="keywords" value={form.keywords} onChange={handleChange} />
@@ -334,9 +349,9 @@ const EditActivity = () => {
                         </Box>
                         <Divider sx={{ mb: 3 }} />
 
-                        {(user?.role === 'student' && form.status === 'Submitted') ? (
+                        {(user?.role === 'student' && form.approval_status === 'Approved') ? (
                             <Alert severity="warning" variant="outlined" sx={{ borderRadius: 2, mb: 2 }}>
-                                <strong>Documents Locked:</strong> You cannot modify or delete certificates after submission. Please contact a mentor or admin for corrections.
+                                <strong>Documents Locked:</strong> You cannot modify certificates after approval. Please contact a mentor or admin for corrections.
                             </Alert>
                         ) : (
                             <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" p={5} border="2px dashed" borderColor="grey.300" borderRadius={3} bgcolor="grey.50"
