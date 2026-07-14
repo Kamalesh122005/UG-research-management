@@ -1,93 +1,133 @@
-# Department Student Research & Academic Activity Management Portal
+# 🎓 Department Student Research & Academic Activity Management Portal 🚀
 
-A full-stack web application designed for academic departments to manage student research, conferences, hackathons, publications, and achievements. Features role-based access control for Students, Staff/Faculty, and Admins.
+[![Frontend: React](https://img.shields.io/badge/Frontend-React%20(Vite)-blue.svg)](https://react.dev)
+[![Backend: Node/Express](https://img.shields.io/badge/Backend-Node.js%20%2F%20Express-green.svg)](https://expressjs.com)
+[![Database: MySQL](https://img.shields.io/badge/Database-MySQL-orange.svg)](https://www.mysql.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 
-## 🛠️ Tech Stack
-- **Frontend**: React.js (Vite), Material UI (MUI), React Router
-- **Backend**: Node.js, Express.js
-- **Database**: MySQL (using `mysql2`)
-- **Auth**: Session-based auth with `express-session` & `bcrypt`
+A modern, full-stack Academic Portal designed for departments to coordinate, monitor, and manage student-led academic achievements, research papers, publications, and external events like hackathons.
 
-## 📁 Folder Structure
+---
+
+## 🏛️ Application Architecture
+
+```mermaid
+flowchart TD
+    Client([React Frontend Client \n Vite + MUI]) <-->|API Calls / JSON| Server[Express.js API Server]
+    Server <-->|Auth & Role Check| Session[express-session & bcrypt]
+    Server <-->|SQL Queries| DB[(MySQL Database)]
 ```
-academic-portal/
-├── backend/            # Express.js Server
-│   ├── middleware/     # Auth and role middlewares
-│   ├── routes/         # API routes (auth, users, activities)
-│   ├── db.js           # MySQL connection pool
-│   ├── init-db.js      # Automatic schema initialization script
-│   ├── schema.sql      # Database schema
-│   ├── server.js       # Express entrypoint
-│   └── .env            # Environment Variables
-└── frontend/           # React.js Vite App
+
+---
+
+## ✨ Features
+
+- **🔒 Secured Authentication & RBAC**:
+  - Secure signup/login using bcrypt passwords.
+  - Role-Based Access Control (RBAC) with three distinct levels: **Student**, **Staff/Faculty**, and **Admin**.
+- **📝 Academic Activity Registry**:
+  - Add, edit, and categorize activities (Conferences, Publications, Patents, Hackathons, Projects).
+  - Submit documents, journals, and event dates for approval.
+- **📊 Comprehensive Dashboards**:
+  - **Student Dashboard**: Tracks personal activity submissions, project summaries, and progress.
+  - **Staff Dashboard**: Reviews, approves, or rejects student submissions within their domain.
+  - **Admin Dashboard**: Manages users, configuration parameters, and accesses system logs.
+- **🗃️ Automatic Database Initialization**:
+  - Instant structure setup and seed data load using a single script execution.
+
+---
+
+## 📁 Repository Structure
+
+```
+UG-research-management/
+├── backend/               # Node.js + Express API Backend
+│   ├── middleware/        # Authentication & Authorization guards
+│   ├── routes/            # REST API route controllers
+│   ├── db.js              # MySQL connection pool
+│   ├── init-db.js         # Auto-schema creation script
+│   ├── schema.sql         # Raw MySQL database schema
+│   ├── server.js          # Main Express server entrypoint
+│   └── .env.example       # Template environment variables
+└── frontend/              # React.js Vite Frontend App
     ├── src/
-    │   ├── context/    # React Context (AuthContext)
-    │   ├── pages/      # UI Views (Dashboards, Login, Profile...)
-    │   ├── App.jsx     # React Router routing
-    │   └── main.jsx    # Application entrypoint & MUI Theme
+    │   ├── components/    # Reusable layout and modal components
+    │   ├── context/       # AuthState management
+    │   ├── pages/         # Dashboard views & forms
+    │   ├── App.jsx        # Routing configuration
+    │   └── main.jsx       # Theme and mount configuration
     └── index.html
 ```
 
-## ⚙️ Environment Configuration
+---
 
-First, ensure you have **MySQL** installed and running on your system.
+## ⚙️ Local Configuration & Setup
 
-Navigate to the `backend` folder and create/update the `.env` file:
+### Prerequisites
+Make sure **Node.js** (v18+) and **MySQL** are installed and running locally.
+
+### 1. Backend Environment Setup
+Navigate to the `backend/` directory and configure the environment variables:
+```bash
+cd backend
+cp .env.example .env
+```
+Update `.env` with your local MySQL credentials:
 ```env
 PORT=5000
 DB_USER=root
 DB_PASSWORD=your_password_here
-DB_HOST=localhost
+DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_NAME=academic_portal
 SESSION_SECRET=super_secret_academic_session_key
 ```
-Update `DB_USER` and `DB_PASSWORD` to match your local MySQL credentials.
 
-## 🚀 Steps to Install Dependencies
-
-1. **Backend Initialization**
-   Open a terminal, navigate to the `backend` folder, and install packages:
-   ```bash
-   cd backend
-   npm install
-   ```
-
-2. **Frontend Initialization**
-   Open a new terminal tab, navigate to the `frontend` folder, and install packages:
-   ```bash
-   cd frontend
-   npm install
-   ```
-
-## 🗄️ Database Initialization
-
-Instead of manually running SQL queries, you can run the built-in initialization script. From the `backend` folder, run:
+### 2. Install Dependencies & Build
+Install libraries for both packages:
 ```bash
+# Install backend dependencies
+cd backend
+npm install
+
+# Install frontend dependencies
+cd ../frontend
+npm install
+```
+
+### 3. Initialize Database Tables
+Run the automatic database initializer script from the `backend/` directory to create databases, tables, and mock data:
+```bash
+cd ../backend
 node init-db.js
 ```
-*This will automatically connect to your MySQL instance, create the `academic_portal` database, and execute `schema.sql` to set up tables and demo data.*
 
-## ▶️ Running the Project Locally
+---
 
-**Start the Backend Server:**
+## ▶️ Run Application
+
+Start the **Backend Server**:
 ```bash
 cd backend
-npm run dev      # if nodemon is available, or 'node server.js'
+npm run dev
 ```
-*The server will run on http://localhost:5000*
+*API runs at http://localhost:5000*
 
-**Start the Frontend Dev Server:**
+Start the **Frontend Development Client**:
 ```bash
 cd frontend
 npm run dev
 ```
-*The React app will usually run on http://localhost:5173. Open this in your browser.*
+*Frontend runs at http://localhost:5173*
 
-### 🔑 Demo Login Instructions
-The initialization script seeds the following demo accounts:
-- **Admin**: `admin@test.com` / `admin123`
-- **Staff**: `staff@test.com` / `staff123`
-- **Student**: `student@test.com` / `student123`
+---
 
-You can also use the registration feature in the UI to create new accounts.
+## 🔑 Demo Access Accounts
+
+The database seed script generates the following test users:
+
+| Role | Email | Password |
+| :--- | :--- | :--- |
+| **Admin** | `admin@test.com` | `admin123` |
+| **Staff/Faculty** | `staff@test.com` | `staff123` |
+| **Student** | `student@test.com` | `student123` |
