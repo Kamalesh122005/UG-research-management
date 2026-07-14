@@ -1,4 +1,4 @@
-# 🎓 Department Student Research & Academic Activity Management Portal 🚀
+#  Department Student Research & Academic Activity Management Portal 🚀
 
 [![Frontend: React](https://img.shields.io/badge/Frontend-React%20(Vite)-blue.svg)](https://react.dev)
 [![Backend: Node/Express](https://img.shields.io/badge/Backend-Node.js%20%2F%20Express-green.svg)](https://expressjs.com)
