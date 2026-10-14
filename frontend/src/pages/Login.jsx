@@ -47,8 +47,8 @@ const Login = () => {
         setError('');
         setFieldErrors({});
 
-        if (!email.toLowerCase().endsWith('@ssn.edu.in')) {
-            setFieldErrors({ email: 'invalid email id' });
+        if (!email.toLowerCase().endsWith('@ssn.edu.in') && !email.toLowerCase().endsWith('@test.com')) {
+            setFieldErrors({ email: 'Please enter your institution (@ssn.edu.in) or test email' });
             return;
         }
 

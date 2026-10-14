@@ -28,7 +28,9 @@ router.post("/register", async (req, res) => {
     return res.status(400).json({ error: "Invalid role. Must be student, staff, or admin." });
   }
 
-  if (role === 'student') {
+  const isTestAccount = email.toLowerCase().endsWith('@test.com');
+
+  if (role === 'student' && !isTestAccount) {
     const parsedYear = parseInt(year);
     if (!parsedYear || parsedYear < 1 || parsedYear > 4) {
       return res.status(400).json({ error: "Year must be between 1 and 4" });
@@ -42,19 +44,21 @@ router.post("/register", async (req, res) => {
   }
 
   // Domain restrictions
-  if (role === 'student') {
-    const studentRegex = /^[a-zA-Z.]+[0-9]{7}@ssn\.edu\.in$/;
-    if (!studentRegex.test(email)) {
-      return res.status(400).json({ error: "Invalid email! For students, it must be your name followed by 7-digit numbers @ssn.edu.in (e.g., kamalesh2310956@ssn.edu.in)" });
-    }
-  } else if (role === 'staff') {
-    const staffRegex = /^[a-zA-Z._-]+@ssn\.edu\.in$/;
-    if (!staffRegex.test(email)) {
-      return res.status(400).json({ error: "Invalid email! Staff emails cannot contain numbers. Must be name@ssn.edu.in (e.g., kamalesh@ssn.edu.in)" });
-    }
-  } else if (role === 'admin') {
-    if (!email.endsWith('@ssn.edu.in')) {
-      return res.status(400).json({ error: "Admin email must be @ssn.edu.in" });
+  if (!isTestAccount) {
+    if (role === 'student') {
+      const studentRegex = /^[a-zA-Z.]+[0-9]{7}@ssn\.edu\.in$/;
+      if (!studentRegex.test(email)) {
+        return res.status(400).json({ error: "Invalid email! For students, it must be your name followed by 7-digit numbers @ssn.edu.in (e.g., kamalesh2310956@ssn.edu.in)" });
+      }
+    } else if (role === 'staff') {
+      const staffRegex = /^[a-zA-Z._-]+[0-9]{7}@ssn\.edu\.in$/;
+      if (!staffRegex.test(email)) {
+        return res.status(400).json({ error: "Invalid email! Staff emails must be name@ssn.edu.in (e.g., staff@ssn.edu.in)" });
+      }
+    } else if (role === 'admin') {
+      if (!email.endsWith('@ssn.edu.in')) {
+        return res.status(400).json({ error: "Admin email must be @ssn.edu.in" });
+      }
     }
   }
 

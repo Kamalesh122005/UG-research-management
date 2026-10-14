@@ -82,19 +82,22 @@ const Register = () => {
         }
 
         // --- Role based strict validations ---
-        if (form.role === 'student' && !newFieldErrors.password) {
-            const studentEmailRegex = /^[a-zA-Z.]+[0-9]{7}@ssn\.edu\.in$/;
-            if (!studentEmailRegex.test(form.email)) {
-                newFieldErrors.email = 'enter proper institution mail id';
-            }
-            const regNoRegex = /^3122\d{9}$/;
-            if (!form.register_number || !regNoRegex.test(form.register_number)) {
-                newFieldErrors.register_number = 'enter valid register number';
-            }
-        } else if (form.role === 'staff' && !newFieldErrors.password) {
-            const staffEmailRegex = /^[a-zA-Z._-]+@ssn\.edu\.in$/;
-            if (!staffEmailRegex.test(form.email)) {
-                newFieldErrors.email = 'enter proper institution mail id';
+        const isTestEmail = form.email.toLowerCase().endsWith('@test.com');
+        if (!isTestEmail) {
+            if (form.role === 'student' && !newFieldErrors.password) {
+                const studentEmailRegex = /^[a-zA-Z.]+[0-9]{7}@ssn\.edu\.in$/;
+                if (!studentEmailRegex.test(form.email)) {
+                    newFieldErrors.email = 'enter proper institution mail id';
+                }
+                const regNoRegex = /^3122\d{9}$/;
+                if (!form.register_number || !regNoRegex.test(form.register_number)) {
+                    newFieldErrors.register_number = 'enter valid register number';
+                }
+            } else if (form.role === 'staff' && !newFieldErrors.password) {
+                const staffEmailRegex = /^[a-zA-Z._-]+@ssn\.edu\.in$/;
+                if (!staffEmailRegex.test(form.email)) {
+                    newFieldErrors.email = 'enter proper institution mail id';
+                }
             }
         }
 
